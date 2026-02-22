@@ -1,0 +1,16 @@
+from typing import Protocol, Self
+
+
+class IUOW(Protocol):
+    def __init__(self):
+        pass
+    
+    async def __aenter__(self) -> Self: ...
+    
+    async def __aexit__(self) -> None: ...
+    
+    async def rollback(self) -> None: ...
+    
+    async def commit(self) -> None: ...
+    
+    async def close(self) -> None: ...

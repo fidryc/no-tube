@@ -1,0 +1,123 @@
+import datetime
+import enum
+from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
+from sqlalchemy import Integer, String, Boolean, ForeignKey, Enum, DateTime, func
+from typing import List
+
+from app.domain.enums import ProcessingStatuses, Roles, Visibility
+
+
+class Base(DeclarativeBase):
+    pass
+
+    
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    email: Mapped[str] = mapped_column(String(64), nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(256), nullable=False)
+    role: Mapped[Roles] = mapped_column(Enum(Roles, native_enum=False), index=True, nullable=False, default=Roles.USER)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+
+class Video(Base):
+    __tablename__ = "videos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(String(512), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    processing_status: Mapped[ProcessingStatuses] = mapped_column(Enum(ProcessingStatuses, native_enum=False), nullable=False)
+    visibility: Mapped[Visibility] = mapped_column(Enum(Visibility, native_enum=False), nullable=False, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    
+class VideoStats(Base):
+    __tablename__ = "video_stats"
+
+    video_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "videos.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"
+        ),
+        primary_key=True
+    )
+    likes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    views: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class VideoUrls(Base):
+    __tablename__ = "video_urls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "videos.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"    
+        ),
+        index=True
+    )
+    url: Mapped[str] = mapped_column(String(128), nullable=False)
+    quality: Mapped[str] = mapped_column(String, nullable=False)
+    format: Mapped[str] = mapped_column(String, nullable=False)
+    bitrate: Mapped[int] = mapped_column(Integer, nullable=False)
+    codec: Mapped[str] = mapped_column(String, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class Likes(Base):
+    __tablename__ = "likes"
+
+    video_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "videos.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"    
+        ),
+        primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"    
+        ),
+        primary_key=True
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+
+class History(Base):
+    __tablename__ = "history"
+
+    video_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "videos.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"    
+        ),
+        primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"    
+        ),
+        primary_key=True
+    )
+    watched_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+
+
+class BlacklistRefresh(Base):
+    __tablename__ = "blacklist_refresh"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    jti: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+    
+    
