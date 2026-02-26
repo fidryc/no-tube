@@ -1,4 +1,6 @@
-from typing import Protocol, TypeVar, Generic
+from typing import Any, Protocol, TypeVar, Generic
+
+from app.repositories.filter.filter import And, Filter, Not, Or
 
 Model = TypeVar("Model")
 Entity = TypeVar("Entity")
@@ -12,11 +14,14 @@ class IRepository(Protocol, Generic[Model, Entity]):
     async def get_all(self) -> list[Entity]:
         pass
     
-    async def get_by_filters(self, **filters) -> list[Entity]:
+    def to_expression(self, filter: And | Or | Not | Filter) -> Any: 
+        pass
+        
+    async def get_by_filters(self, *filters: And | Or | Not | Filter) -> list[Entity]:
         pass
     
-    async def delete_by_id(self, id: int):
+    async def delete_by_id(self, id: int, id_title_col="id") -> int | None:
         pass
     
-    async def delete_by_filters(self, **filters):
+    async def delete_by_filters(self, filters: list[And | Or | Not | Filter], want_del_all=False, id_title_col="id") -> list[int]:
         pass
