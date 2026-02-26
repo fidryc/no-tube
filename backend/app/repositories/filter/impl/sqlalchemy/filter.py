@@ -1,13 +1,12 @@
-from typing import Any, Union
-
-from sqlalchemy import ColumnElement
+from sqlalchemy import and_, not_, or_
+from typing import Any
 
 from app.repositories.filter.enum import Operation
-from app.repositories.filter.interface import IAgregator
+from app.repositories.filter.interface import IExpression, IFilter
 
 
-class Filter:
-    __conditions = {
+class Filter(IFilter, IExpression):
+    _conditions = {
         Operation.EQ: lambda obj, value: obj == value,
         Operation.NE: lambda obj, value: obj != value,
         Operation.LT: lambda obj, value: obj < value,
@@ -28,25 +27,39 @@ class Filter:
         self.__col_title = col_title
         self.__value = value
         self.__operation = operation
-        
-    def filter_value(self, obj: Any) -> Union[bool, ColumnElement[bool]]:
+    
+    def to_expression(self, model):
         """
         The model is passed from which the attribute passed in col_title is attempted to be taken.
         """
-        if not hasattr(obj, self.__col_title):
-            return False
-        return self.__conditions[self.__operation](getattr(obj, self.__col_title), self.__value)
+        if not hasattr(model, self.__col_title):
+            raise AttributeError(f"Model {model} has no column '{self.__col_title}'")
+        return self._conditions[self.__operation](getattr(model, self.__col_title), self.__value)
         
-        
-class Agregator(IAgregator):
-    def __init__(self, *conditions: Union["Or", "And", Filter]):
-        self.conditions = conditions
+class Logic(IExpression):
+    _op = None
+    def __init__(self, *conditions: IExpression):
+        self.conditions: list[IExpression] = conditions
+   
+    def to_expression(self, model):
+        return self._op(*[cond.to_expression(model=model) for cond in self.conditions])
        
         
-class Or(Agregator):
-    pass
+class Or(Logic):
+    _op = staticmethod(or_)
 
-class And(Agregator):
-    pass
+
+class And(Logic):
+    _op = staticmethod(and_)
+
+
+class Not(IExpression):
+    _op = staticmethod(not_)
+    
+    def __init__(self, condition: IExpression):
+        self.condition: IExpression = condition
+    
+    def to_expression(self, model):
+        return self._op(self.condition.to_expression(model=model))
         
     

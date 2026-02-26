@@ -1,16 +1,14 @@
-from sqlalchemy import Delete, Insert, Select, and_, or_
+from sqlalchemy import Delete, Insert, Select, and_, not_, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase
 from app.repositories.exceptions import BaseRespositoryException
-from app.repositories.filter.impl.sqlalchemy.filter import Agregator, And, Or
 from app.repositories.implementations.sqlalchemy.utils.converters import to_dict
 from app.repositories.interfaces.base_repository import IRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import TypeVar
 from app.core.logger import logger
 from app.utils.mapper import mapping_to_obj
-from app.repositories.filter.enum import Operation
-from app.repositories.filter.impl.sqlalchemy.filter import Filter
+from app.repositories.filter.impl.sqlalchemy.filter import And, Filter, Not, Or
 
 
 DEFAULT_ERROR_DESCRIPTION = "Unknow error in db"
@@ -64,30 +62,18 @@ class Repository(IRepository[Model, Entity]):
             )
             raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
         
-    def __convert_models_to_ent(self, models: list[DeclarativeBase]):
+    def __convert_models_to_ent(self, models: list[DeclarativeBase]) -> list:
         entities = [0] * len(models)
         for i, model in enumerate(models):
             # convert all find models to entities
             entities[i] = mapping_to_obj(to_dict(model), self.entity)
         return entities
-        
-    def __parse(self, agregator: Agregator):
-        if isinstance(agregator, Filter):
-            return agregator.filter_value(self.model)
-        args = []
-        for condition in agregator.conditions:
-            args.append(self.__parse(condition))
-            
-        if isinstance(agregator, Or):
-            return or_(*args)
-        elif isinstance(agregator, And):
-            return and_(*args)
          
                 
-    async def get_by_filters(self, *filters: Filter | And | Or) -> list[Entity]:
+    async def get_by_filters(self, *filters: Not | And | Or | Filter) -> list[Entity]:
         if not self.model:
             raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
-        query = Select(self.model).where(*[self.__parse(fil) for fil in filters])
+        query = Select(self.model).where(*[fil.to_expression(self.model) for fil in filters])
         try:
             models = (await self.session.execute(query)).scalars().all()
             return self.__convert_models_to_ent(models=models)

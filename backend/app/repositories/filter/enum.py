@@ -1,4 +1,3 @@
-from typing import Any
 from enum import Enum
 
 class Operation(Enum):
@@ -10,8 +9,4 @@ class Operation(Enum):
     GE = ">="
     IN = "IN"
     NOT_IN = "NOT IN"
-    
 
-        
-        
-    
