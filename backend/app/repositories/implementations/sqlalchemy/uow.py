@@ -1,13 +1,13 @@
 from typing import Optional, Self
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.implementations.sqlalchemy.repositories import (
+    SessionRepository,
     UserRepository,
     VideoRepository,
     VideoStatsRepository,
     VideoUrlsRepository,
     LikesRepository,
-    HistoryRepository,
-    BlacklistRefreshRepository
+    HistoryRepository
 )
 from app.repositories.interfaces.uow import IUOW
 from app.db.session import session_maker
@@ -19,14 +19,13 @@ class UOW(IUOW):
         self.session_factory = session_maker
         self.__session: Optional[AsyncSession] = None
 
-        # репозитории
         self.__user_repo: Optional[UserRepository] = None
         self.__video_repo: Optional[VideoRepository] = None
         self.__video_stats_repo: Optional[VideoStatsRepository] = None
         self.__video_urls_repo: Optional[VideoUrlsRepository] = None
         self.__likes_repo: Optional[LikesRepository] = None
         self.__history_repo: Optional[HistoryRepository] = None
-        self.__blacklist_refresh_repo: Optional[BlacklistRefreshRepository] = None
+        self.__session_repo: Optional[SessionRepository] = None
 
     async def __aenter__(self) -> Self:
         self.__session = self.session_factory()
@@ -101,7 +100,7 @@ class UOW(IUOW):
         return self.__history_repo
 
     @property
-    def blacklist_refresh_repo(self) -> BlacklistRefreshRepository:
-        if self.__blacklist_refresh_repo is None and self.__session is not None:
-            self.__blacklist_refresh_repo = BlacklistRefreshRepository(self.__session)
-        return self.__blacklist_refresh_repo
+    def session_repo(self) -> SessionRepository:
+        if self.__session_repo is None and self.__session is not None:
+            self.__session_repo = SessionRepository(self.__session)
+        return self.__session_repo

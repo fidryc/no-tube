@@ -1,4 +1,4 @@
-class BaseRespositoryException(Exception):
+class BaseRepositoryException(Exception):
     pass
 
 class UOWException(Exception):

@@ -1,7 +1,7 @@
-from sqlalchemy import ColumnElement, Delete, Insert, Select, and_, not_, or_
+from sqlalchemy import ColumnElement, Delete, Insert, Select, Update, and_, not_, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase
-from app.repositories.exceptions import BaseRespositoryException
+from app.repositories.exceptions import BaseRepositoryException
 from app.repositories.filter.enum import Operation
 from app.repositories.implementations.sqlalchemy.utils.converters import to_dict
 from app.repositories.interfaces.base_repository import IRepository
@@ -27,7 +27,7 @@ class Repository(IRepository[Model, Entity]):
         
     async def get_by_id(self, id: int, id_title_col="id") -> Entity | None:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Select(self.model).where(getattr(self.model, id_title_col) == id)
         
         try:
@@ -47,7 +47,7 @@ class Repository(IRepository[Model, Entity]):
                 exc_info=True,
                 extra={"id": id},
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
         
     async def get_all(
         self,
@@ -57,7 +57,7 @@ class Repository(IRepository[Model, Entity]):
         offset: int | None = None
     ) -> list[Entity]:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Select(self.model)
         if order_by_col_title is not None:
             col = getattr(self.model, order_by_col_title)
@@ -76,7 +76,7 @@ class Repository(IRepository[Model, Entity]):
                 msg="Error getting data from method 'get_all'",
                 exc_info=True,
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
         
     def __convert_models_to_ent(self, models: list[DeclarativeBase]) -> list:
         entities = [0] * len(models)
@@ -122,7 +122,7 @@ class Repository(IRepository[Model, Entity]):
         offset: int | None = None
     ) -> list[Entity]:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Select(self.model).where(*[self.to_expression(fil) for fil in filters])
         if order_by_col_title is not None:
             col = getattr(self.model, order_by_col_title)
@@ -142,11 +142,11 @@ class Repository(IRepository[Model, Entity]):
                 exc_info=True,
                 extra=filters
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
     
     async def delete_by_id(self, id: int, id_title_col="id") -> int | None:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Delete(self.model).where(getattr(self.model, id_title_col)==id).returning(getattr(self.model, id_title_col))
         try:
             return (await self.session.execute(query)).scalars().one_or_none()
@@ -156,14 +156,14 @@ class Repository(IRepository[Model, Entity]):
                 exc_info=True,
                 extra={"id": id}
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
     
     async def delete_by_filters(self, filters: list[And | Or | Not | Filter], want_del_all=False, id_title_col="id") -> list[int]:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Delete(self.model)
         if not want_del_all and not filters:
-            raise BaseRespositoryException("Change the parameter Want_del_all = True if you want to delete all records")
+            raise BaseRepositoryException("Change the parameter Want_del_all = True if you want to delete all records")
         if filters:
             query = query.where(*[self.to_expression(fil) for fil in filters]).returning(getattr(self.model, id_title_col))
         try:
@@ -174,11 +174,11 @@ class Repository(IRepository[Model, Entity]):
                 exc_info=True,
                 extra=filters
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
         
     async def add(self, obj: dict, id_title_col="id") -> int:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Insert(self.model).values(**obj).returning(getattr(self.model, id_title_col))
         
         try:
@@ -190,11 +190,11 @@ class Repository(IRepository[Model, Entity]):
                 exc_info=True,
                 extra={"obj": obj},
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
         
     async def add_many(self, objs: list[dict], id_title_col="id") -> list[int]:
         if not self.model:
-            raise BaseRespositoryException(DEFAULT_ERROR_LACK_MODEL)
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
         query = Insert(self.model).values(objs).returning(getattr(self.model, id_title_col))
         
         try:
@@ -206,4 +206,21 @@ class Repository(IRepository[Model, Entity]):
                 exc_info=True,
                 extra={"obj": objs},
             )
-            raise BaseRespositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
+        
+    async def update(self, filter: And | Or | Not | Filter, values: dict, id_title_col="id") -> int:
+        if not self.model:
+            raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
+        query = Update(self.model).where(self.to_expression(filter)).values(**values).returning(getattr(self.model, id_title_col))
+        
+        try:
+            print(query)
+            id = (await self.session.execute(query)).scalars().one_or_none()
+            return id
+        except SQLAlchemyError as e:
+            logger.critical(
+                msg="Error 'update'",
+                exc_info=True,
+                extra={"filter": filter, "obj": values},
+            )
+            raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e

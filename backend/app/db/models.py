@@ -15,11 +15,11 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), nullable=False)
-    email: Mapped[str] = mapped_column(String(64), nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String(256), nullable=False)
+    email: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    hashed_password: Mapped[str] = mapped_column(String(256), nullable=True) # null because user can login with oauth2
     role: Mapped[Roles] = mapped_column(Enum(Roles, native_enum=False), index=True, nullable=False, default=Roles.USER)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
-
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
+    is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
 
 class Video(Base):
     __tablename__ = "videos"
@@ -30,7 +30,7 @@ class Video(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     processing_status: Mapped[ProcessingStatuses] = mapped_column(Enum(ProcessingStatuses, native_enum=False), nullable=False)
     visibility: Mapped[Visibility] = mapped_column(Enum(Visibility, native_enum=False), nullable=False, index=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
     
 class VideoStats(Base):
     __tablename__ = "video_stats"
@@ -87,7 +87,7 @@ class Likes(Base):
         ),
         primary_key=True
     )
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
 class History(Base):
@@ -109,14 +109,21 @@ class History(Base):
         ),
         primary_key=True
     )
-    watched_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=func.now())
+    watched_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
-class BlacklistRefresh(Base):
-    __tablename__ = "blacklist_refresh"
+class Session(Base):
+    __tablename__ = "sessions"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    jti: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE" 
+        )
+    )
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     
     

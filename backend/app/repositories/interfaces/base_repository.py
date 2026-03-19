@@ -25,3 +25,13 @@ class IRepository(Protocol, Generic[Model, Entity]):
     
     async def delete_by_filters(self, filters: list[And | Or | Not | Filter], want_del_all=False, id_title_col="id") -> list[int]:
         pass
+    
+    async def add(self, obj: dict, id_title_col="id") -> int:
+        pass
+    
+    async def add_many(self, objs: list[dict], id_title_col="id") -> list[int]:
+        pass
+    
+    async def update(self, filter: And | Or | Not | Filter, values: dict, id_title_col="id") -> int:
+        pass
+    

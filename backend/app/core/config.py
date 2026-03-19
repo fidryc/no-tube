@@ -27,8 +27,13 @@ class Settings(BaseSettings):
     PROD_DB_USER: str
     PROD_DB_PASS: str
     
-    PRIVATE_SECRET_KEY_PATH: str
-    PUBLIC_SECRET_KEY_PATH: str
+    SMTP_HOST: str
+    SMTP_PORT: int
+    SMTP_USER: str
+    SMTP_PASS: str
+    
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
     
     __DB_URL = None
     

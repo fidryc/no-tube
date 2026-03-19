@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import datetime
+from typing import Optional
 
 from app.domain.enums import ProcessingStatuses, Roles, Visibility
 
@@ -8,10 +9,11 @@ from app.domain.enums import ProcessingStatuses, Roles, Visibility
 class UserEntity:
     id: int
     username: str
-    hashed_password: str
     email: str
     role: Roles
     created_at: datetime.datetime
+    is_confirmed: bool
+    hashed_password: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,7 @@ class HistoryEntity:
     
     
 @dataclass(frozen=True)
-class BlacklistRefreshEntity:
-    id: int
-    jti: str
+class SessionEntity:
+    id: str
+    user_id: int
+    expires_at: datetime.datetime

@@ -1,22 +1,22 @@
 from app.db.models import (
+    Session,
     User,
     Video,
     VideoStats,
     VideoUrls,
     Likes,
-    History,
-    BlacklistRefresh
+    History
 )
 from app.repositories.interfaces.base_repository import IRepository
 from app.repositories.implementations.sqlalchemy.base_repository import Repository
 from app.domain.entitites import (
+    SessionEntity,
     UserEntity,
     VideoEntity,
     VideoStatsEntity,
     VideoUrlEntity,
     LikeEntity,
-    HistoryEntity,
-    BlacklistRefreshEntity
+    HistoryEntity
 )
 
 
@@ -50,6 +50,6 @@ class HistoryRepository(Repository[History, HistoryEntity]):
     entity = HistoryEntity
 
 
-class BlacklistRefreshRepository(Repository[BlacklistRefresh, BlacklistRefreshEntity]):
-    model = BlacklistRefresh
-    entity = BlacklistRefreshEntity
+class SessionRepository(Repository[Session, SessionEntity]):
+    model = Session
+    entity = SessionEntity
