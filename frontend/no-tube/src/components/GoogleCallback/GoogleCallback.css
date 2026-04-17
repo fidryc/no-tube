@@ -1,0 +1,49 @@
+/* GoogleCallback.css */
+
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 16px;
+}
+
+.auth-message {
+  font-size: 18px;
+  color: #555;
+}
+
+.auth-error {
+  font-size: 18px;
+  color: #d93025;
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background-color: #fff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.google-btn:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.google-btn:active {
+  background-color: #e8eaed;
+}
+
+.google-btn img {
+  width: 20px;
+  height: 20px;
+}

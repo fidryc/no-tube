@@ -1,0 +1,307 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #080810;
+  --surface: #26262d;
+  --border: #1a1a2e;
+  --accent: #00e5ff;
+  --accent-dim: rgba(0, 229, 255, 0.08);
+  --accent-glow: rgba(0, 229, 255, 0.25);
+  --text: #e0e0f0;
+  --text-muted: #555570;
+  --role-user: #ff4f95;
+  --role-admin: #db2828;
+}
+
+body {
+  background: var(--bg);
+}
+
+/* Loading */
+.app-loading {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: flex-start;
+}
+
+.app-loading-bar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: loadBar 1.2s ease-in-out infinite;
+  width: 40%;
+}
+
+@keyframes loadBar {
+  0% { transform: translateX(-100vw); }
+  100% { transform: translateX(300vw); }
+}
+
+/* Page */
+.app-page {
+  min-height: 100vh;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text);
+  position: relative;
+  overflow: hidden;
+}
+
+.app-grid-bg {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 40px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
+  animation: fadeDown 0.4s ease forwards;
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.app-logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+  text-shadow: 0 0 20px var(--accent-glow);
+}
+
+.app-logout {
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.app-logout:hover {
+  color: var(--text);
+  border-color: #2a2a4a;
+  background: rgba(255,255,255,0.03);
+}
+
+/* Main */
+.app-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 73px);
+  padding: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Profile (logged in) */
+.app-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.app-avatar {
+  width: 80px;
+  height: 80px;
+  background: var(--accent-dim);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Syne', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--accent);
+  box-shadow: 0 0 40px var(--accent-glow), inset 0 0 20px var(--accent-dim);
+}
+
+.app-profile-info {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.app-welcome {
+  font-family: 'Syne', sans-serif;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--text);
+}
+
+.app-username {
+  color: var(--accent);
+  text-shadow: 0 0 20px var(--accent-glow);
+}
+
+.app-meta {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.app-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 20px;
+  min-width: 140px;
+}
+
+.app-meta-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.app-meta-value {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.app-role {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Syne', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.app-role--user { color: var(--role-user); }
+.app-role--admin { color: var(--role-admin); }
+
+/* Guest (not logged in) */
+.app-guest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.app-guest-icon {
+  font-size: 52px;
+  color: var(--border);
+  margin-bottom: 8px;
+  animation: iconFloat 3s ease-in-out infinite;
+}
+
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.app-guest-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  color: var(--text);
+}
+
+.app-guest-sub {
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 300;
+  margin-bottom: 8px;
+}
+
+.app-guest-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.app-btn-primary {
+  padding: 12px 28px;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: #080810;
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+
+.app-btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px var(--accent-glow);
+}
+
+.app-btn-primary:active {
+  transform: translateY(0);
+}
+
+.app-btn-google {
+  padding: 12px 20px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.app-btn-google:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: #2a2a4a;
+  transform: translateY(-2px);
+}
+
+.app-btn-google:active {
+  transform: translateY(0);
+}
