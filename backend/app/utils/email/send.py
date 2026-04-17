@@ -16,4 +16,6 @@ async def send_email(msg_email: dict):
             use_tls=True
         )
         logger.info('Email sent successfully (async)', extra={'recipient': recipient})
-    except SMTPException as e: pass # TODO: преобразование ошибки
+    except SMTPException as e:
+        # TODO: преобразование ошибки
+        logger.critical("Failed send msg", extra={"msg_email": msg_email}, exc_info=True)

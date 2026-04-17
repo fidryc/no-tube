@@ -8,6 +8,7 @@ from app.domain.entitites import (
     LikeEntity,
     HistoryEntity,
     SessionEntity,
+    OauthAccountEntity
 )
 
 Model = TypeVar("Model")
@@ -38,4 +39,7 @@ class IHistoryRepository(IRepository[Model, HistoryEntity], Protocol):
 
 
 class ISessionRepository(IRepository[Model, SessionEntity], Protocol):
+    pass
+
+class IOauthAccountRepository(IRepository[Model, OauthAccountEntity], Protocol):
     pass

@@ -1,6 +1,6 @@
 from typing import Optional, Protocol, Self
 
-from app.repositories.interfaces.repositories import IHistoryRepository, ILikesRepository, ISessionRepository, IUserRepository, IVideoRepository, IVideoStatsRepository, IVideoUrlsRepository
+from app.repositories.interfaces.repositories import IHistoryRepository, ILikesRepository, IOauthAccountRepository, ISessionRepository, IUserRepository, IVideoRepository, IVideoStatsRepository, IVideoUrlsRepository
 
 class IUOW(Protocol):
     def __init__(self):
@@ -11,6 +11,7 @@ class IUOW(Protocol):
         self.__likes_repo: Optional[ILikesRepository] = None
         self.__history_repo: Optional[IHistoryRepository] = None
         self.__session_repo: Optional[ISessionRepository] = None
+        self.__oauth_account_repo: Optional[IOauthAccountRepository] = None
 
     async def __aenter__(self) -> Self: ...
     async def __aexit__(self, exc_type, exc, tb) -> None: ...
@@ -45,3 +46,7 @@ class IUOW(Protocol):
     @property
     def session_repo(self) -> ISessionRepository:
         return self.__session_repo
+    
+    @property
+    def oauth_account_repo(self) -> IOauthAccountRepository:
+        return self.__oauth_account_repo

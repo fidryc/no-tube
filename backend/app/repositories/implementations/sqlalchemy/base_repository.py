@@ -32,6 +32,8 @@ class Repository(IRepository[Model, Entity]):
         
         try:
             obj = (await self.session.execute(query)).scalars().one_or_none()
+            if obj is None:
+                return None
             try:
                 ent = mapping_to_obj(to_dict(obj), self.entity)
                 return ent
@@ -176,14 +178,20 @@ class Repository(IRepository[Model, Entity]):
             )
             raise BaseRepositoryException(DEFAULT_ERROR_DESCRIPTION) from e
         
-    async def add(self, obj: dict, id_title_col="id") -> int:
+    async def add(self, obj: dict, id_title_col: str | list[str] | None ="id") -> int | None:
         if not self.model:
             raise BaseRepositoryException(DEFAULT_ERROR_LACK_MODEL)
-        query = Insert(self.model).values(**obj).returning(getattr(self.model, id_title_col))
+        query = Insert(self.model).values(**obj)
+        if isinstance(id_title_col, str):
+            query = query.returning(getattr(self.model, id_title_col))
+        elif isinstance(id_title_col, list):
+            query = query.returning(*[getattr(self.model, c) for c in id_title_col])
         
         try:
-            id = (await self.session.execute(query)).scalars().one_or_none()
-            return id
+            res = (await self.session.execute(query))
+            if id_title_col:
+                id = res.scalars().one_or_none()
+                return id
         except SQLAlchemyError as e:
             logger.critical(
                 msg="Error 'add'",

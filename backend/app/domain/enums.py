@@ -7,6 +7,7 @@ class Roles(enum.Enum):
     
 
 class ProcessingStatuses(enum.Enum):
+    DRAFT = "DRAFT"
     UPLOADED = "UPLOADED"
     PROCESSING = "PROCESSING"
     READY = "READY"

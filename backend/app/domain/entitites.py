@@ -66,3 +66,10 @@ class SessionEntity:
     id: str
     user_id: int
     expires_at: datetime.datetime
+    
+@dataclass(frozen=True)
+class OauthAccountEntity:
+    provider: str
+    provider_user_id: str
+    user_id: int
+    created_at: datetime.datetime

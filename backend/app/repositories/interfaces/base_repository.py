@@ -1,4 +1,5 @@
 from typing import Any, Protocol, TypeVar, Generic
+import uuid
 
 from app.repositories.filter.filter import And, Filter, Not, Or
 
@@ -26,7 +27,7 @@ class IRepository(Protocol, Generic[Model, Entity]):
     async def delete_by_filters(self, filters: list[And | Or | Not | Filter], want_del_all=False, id_title_col="id") -> list[int]:
         pass
     
-    async def add(self, obj: dict, id_title_col="id") -> int:
+    async def add(self, obj: dict, id_title_col: str | list[str] | None ="id") -> int | uuid.UUID:
         pass
     
     async def add_many(self, objs: list[dict], id_title_col="id") -> list[int]:

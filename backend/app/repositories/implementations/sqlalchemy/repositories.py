@@ -1,4 +1,5 @@
 from app.db.models import (
+    OauthAccount,
     Session,
     User,
     Video,
@@ -10,6 +11,7 @@ from app.db.models import (
 from app.repositories.interfaces.base_repository import IRepository
 from app.repositories.implementations.sqlalchemy.base_repository import Repository
 from app.domain.entitites import (
+    OauthAccountEntity,
     SessionEntity,
     UserEntity,
     VideoEntity,
@@ -53,3 +55,8 @@ class HistoryRepository(Repository[History, HistoryEntity]):
 class SessionRepository(Repository[Session, SessionEntity]):
     model = Session
     entity = SessionEntity
+    
+
+class OauthAccountRepository(Repository[OauthAccount, OauthAccountEntity]):
+    model = OauthAccount
+    entity = OauthAccountEntity

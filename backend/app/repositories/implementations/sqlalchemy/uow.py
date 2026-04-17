@@ -1,6 +1,8 @@
+from re import S
 from typing import Optional, Self
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.implementations.sqlalchemy.repositories import (
+    OauthAccountRepository,
     SessionRepository,
     UserRepository,
     VideoRepository,
@@ -10,13 +12,13 @@ from app.repositories.implementations.sqlalchemy.repositories import (
     HistoryRepository
 )
 from app.repositories.interfaces.uow import IUOW
-from app.db.session import session_maker
+from app.db.session import async_session_maker
 from app.core.logger import logger
 
 
 class UOW(IUOW):
     def __init__(self):
-        self.session_factory = session_maker
+        self.session_factory = async_session_maker
         self.__session: Optional[AsyncSession] = None
 
         self.__user_repo: Optional[UserRepository] = None
@@ -26,7 +28,8 @@ class UOW(IUOW):
         self.__likes_repo: Optional[LikesRepository] = None
         self.__history_repo: Optional[HistoryRepository] = None
         self.__session_repo: Optional[SessionRepository] = None
-
+        self.__oauth_account_repo: Optional[OauthAccountRepository] = None
+        
     async def __aenter__(self) -> Self:
         self.__session = self.session_factory()
         logger.debug("UOW enter")
@@ -104,3 +107,9 @@ class UOW(IUOW):
         if self.__session_repo is None and self.__session is not None:
             self.__session_repo = SessionRepository(self.__session)
         return self.__session_repo
+    
+    @property
+    def oauth_account_repo(self) -> OauthAccountRepository:
+        if self.__oauth_account_repo is None and self.__session is not None:
+            self.__oauth_account_repo = OauthAccountRepository(self.__session)
+        return self.__oauth_account_repo

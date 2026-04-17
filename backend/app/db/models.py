@@ -1,6 +1,7 @@
 import datetime
+import uuid
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
-from sqlalchemy import Integer, String, Boolean, ForeignKey, Enum, DateTime, func
+from sqlalchemy import Integer, PrimaryKeyConstraint, String, Boolean, ForeignKey, Enum, DateTime, Uuid, func
 from typing import List
 
 from app.domain.enums import ProcessingStatuses, Roles, Visibility
@@ -24,7 +25,7 @@ class User(Base):
 class Video(Base):
     __tablename__ = "videos"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str] = mapped_column(String(512), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -35,7 +36,7 @@ class Video(Base):
 class VideoStats(Base):
     __tablename__ = "video_stats"
 
-    video_id: Mapped[int] = mapped_column(
+    video_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(
             "videos.id",
             ondelete="CASCADE",
@@ -51,7 +52,7 @@ class VideoUrls(Base):
     __tablename__ = "video_urls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    video_id: Mapped[int] = mapped_column(
+    video_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(
             "videos.id",
             ondelete="CASCADE",
@@ -71,7 +72,7 @@ class VideoUrls(Base):
 class Likes(Base):
     __tablename__ = "likes"
 
-    video_id: Mapped[int] = mapped_column(
+    video_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(
             "videos.id",
             ondelete="CASCADE",
@@ -93,7 +94,7 @@ class Likes(Base):
 class History(Base):
     __tablename__ = "history"
 
-    video_id: Mapped[int] = mapped_column(
+    video_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(
             "videos.id",
             ondelete="CASCADE",
@@ -126,4 +127,27 @@ class Session(Base):
     expires_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     
+class OauthAccount(Base):
+    __tablename__ = "oauth_accounts"
+
+    provider: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True
+    )
+    provider_user_id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True
+    )
     
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            onupdate="CASCADE"    
+        )
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
+    
+    __table_args__ = (
+        PrimaryKeyConstraint("provider", "provider_user_id"),
+    )
