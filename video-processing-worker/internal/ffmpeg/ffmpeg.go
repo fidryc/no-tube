@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,20 +19,21 @@ func createDir(path string) error {
 	return nil
 }
 
-func ProcessingVideo(inputPath string, path string) error {
+func ProcessingVideo(ctx context.Context, inputPath string, path string) error {
 	const op = "internal.ffmpeg.ProcessingVideo"
 	if err := createDir(path); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	err := CreateDash(inputPath, fmt.Sprintf("%s/%s.mpd", path, "dash"))
+	err := CreateDash(ctx, inputPath, fmt.Sprintf("%s/%s.mpd", path, "dash"))
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
 }
 
-func CreateDash(inputPath string, outputPath string) error {
-	cmd := exec.Command(
+func CreateDash(ctx context.Context, inputPath string, outputPath string) error {
+	cmd := exec.CommandContext(
+		ctx,
 		"ffmpeg",
 		"-i", inputPath,
 

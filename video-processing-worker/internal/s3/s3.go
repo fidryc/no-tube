@@ -78,7 +78,9 @@ func (c *S3Service) GetKeyUpload(id string) string {
 }
 
 func (c *S3Service) GetObject(bucketName string, key string) (*s3.GetObjectOutput, error) {
-	result, err := c.Client.GetObject(context.TODO(), &s3.GetObjectInput{
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := c.Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(key),
 	})
@@ -89,9 +91,9 @@ func (c *S3Service) GetObject(bucketName string, key string) (*s3.GetObjectOutpu
 	return result, nil
 }
 
-func (c *S3Service) PutObject(bucketName string, key string, contentType string, file io.Reader) (*s3.PutObjectOutput, error) {
+func (c *S3Service) PutObject(ctx context.Context, bucketName string, key string, contentType string, file io.Reader) (*s3.PutObjectOutput, error) {
 	output, err := c.Client.PutObject(
-		context.TODO(),
+		ctx,
 		&s3.PutObjectInput{
 			Bucket:      &bucketName,
 			Key:         &key,
@@ -115,7 +117,9 @@ func (c *S3Service) DeleteObjectsWithPrefix(bucketName string, prefix string) er
 
 	const op = "internal.s3.S3Service.DeleteObjectsWithPrefix"
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.TODO())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		page, err := paginator.NextPage(ctx)
+		cancel()
 		if err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
@@ -138,7 +142,10 @@ func (c *S3Service) DeleteObjectsWithPrefix(bucketName string, prefix string) er
 			},
 		}
 
-		_, err = c.Client.DeleteObjects(context.TODO(), deleteInput)
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+
+		_, err = c.Client.DeleteObjects(ctx, deleteInput)
+		cancel()
 		if err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
@@ -146,11 +153,9 @@ func (c *S3Service) DeleteObjectsWithPrefix(bucketName string, prefix string) er
 	return nil
 }
 
-func (c *S3Service) DownloadFile(file *os.File, bucket string, key string) (int64, error) {
+func (c *S3Service) DownloadFile(ctx context.Context, file *os.File, bucket string, key string) (int64, error) {
 	uploader := transfermanager.New(c.Client)
 	var size int64
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	output, err := uploader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
 		Bucket:   aws.String(bucket),
 		Key:      aws.String(key),

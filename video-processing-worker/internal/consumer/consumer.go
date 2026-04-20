@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -36,13 +37,14 @@ func (consumer *Consumer) Close() error {
 	return nil
 }
 
-func (consumer *Consumer) ConsumeVideo() {
+func (consumer *Consumer) ConsumeVideo(ctx context.Context) {
 	ch, err := consumer.connection.Channel()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer ch.Close()
-	msgs, err := ch.Consume(
+	msgs, err := ch.ConsumeWithContext(
+		ctx,
 		queueVideoName,
 		"",
 		false,
@@ -63,8 +65,9 @@ func (consumer *Consumer) ConsumeVideo() {
 		if err != nil {
 			consumer.logger.Warn("Failed unmarshall msg", "err", err)
 			d.Nack(false, true)
+			continue
 		}
 		consumer.logger.Debug("Unmarshall msg", "msg", msg)
-		consumer.videoManager.VideoProcessWithPool(d, pool, msg.VideoName, msg.Visibility)
+		consumer.videoManager.VideoProcessWithPool(ctx, d, pool, msg.VideoName, msg.Visibility)
 	}
 }

@@ -7,3 +7,9 @@ const (
 	READY      = "READY"
 	FAILED     = "FAILED"
 )
+
+const (
+	PUBLIC   = "PUBLIC"
+	PRIVATE  = "PRIVATE"
+	UNLISTED = "UNLISTED"
+)

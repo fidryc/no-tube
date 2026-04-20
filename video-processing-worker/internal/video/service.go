@@ -1,16 +1,18 @@
 package video
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 	"video_processing_worker/internal/config"
 	"video_processing_worker/internal/ffmpeg"
 	"video_processing_worker/internal/s3"
-	"video_processing_worker/internal/storage/postgresql"
+	"video_processing_worker/internal/storage"
 
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -18,11 +20,11 @@ import (
 type VideoService struct {
 	config     config.Config
 	s3_service *s3.S3Service
-	repository *postgresql.Repository
+	repository storage.IRepository
 	logger     *slog.Logger
 }
 
-func NewVideoManager(config config.Config, s3_service *s3.S3Service, repository *postgresql.Repository, logger *slog.Logger) *VideoService {
+func NewVideoManager(config config.Config, s3_service *s3.S3Service, repository storage.IRepository, logger *slog.Logger) *VideoService {
 	return &VideoService{s3_service: s3_service, repository: repository, config: config, logger: logger}
 }
 
@@ -43,13 +45,39 @@ func (v *VideoService) cleanFile(path string, file *os.File) {
 	}
 }
 
-func (v *VideoService) VideoProcess(id string, statusVisibility string) error {
+func (v *VideoService) PutDirectory(bucketName, pathDir, prefixPathOutput string) error {
+	err := filepath.Walk(pathDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_, err = v.s3_service.PutObject(
+			ctx,
+			bucketName,
+			fmt.Sprintf("%s/%s", prefixPathOutput, info.Name()),
+			v.s3_service.GetContentType(info.Name()),
+			file,
+		)
+		file.Close()
+		cancel()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
+func (v *VideoService) VideoProcess(ctx context.Context, id string, statusVisibility string) error {
 	const op = "internal.video.VideoService.VideoProcess"
-	err := v.repository.UpdateStatus(id, PROCESSING)
-	if err != nil {
-		v.logger.Warn("Failed update status", "id", id, "status", statusVisibility)
-		return fmt.Errorf("%s: %w", op, err)
-	}
 
 	key_s3_private_draft := v.s3_service.GetKeyUpload(id)
 	// Скачиваем файл из s3 себе локально
@@ -62,7 +90,7 @@ func (v *VideoService) VideoProcess(id string, statusVisibility string) error {
 	}
 	defer v.cleanFile(pathFile, file)
 
-	_, err = v.s3_service.DownloadFile(file, v.config.S3.BucketPrivate, key_s3_private_draft)
+	_, err = v.s3_service.DownloadFile(ctx, file, v.config.S3.BucketPrivate, key_s3_private_draft)
 	if err != nil {
 		v.logger.Warn("Failed DownloadFile file", "pathFile", pathFile)
 		return fmt.Errorf("%s: %w", op, err)
@@ -70,47 +98,25 @@ func (v *VideoService) VideoProcess(id string, statusVisibility string) error {
 
 	pathOutputLocal := v.GenerateProcessingPath(id) // Директория в которую сохраняется dash
 	// Создаем dash через ffpmeg
-	err = ffmpeg.ProcessingVideo(pathFile, pathOutputLocal)
+	err = ffmpeg.ProcessingVideo(ctx, pathFile, pathOutputLocal)
 	if err != nil {
 		v.logger.Warn("Failed convert file to dash", "pathFile", pathFile, "pathOutputLocal", pathOutputLocal)
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	// Удалем у себя dash
+	defer func() {
+		err = os.RemoveAll(pathOutputLocal)
+		if err != nil {
+			v.logger.Warn("Failed clean dir", "pathOutputLocal", pathOutputLocal)
+		}
+	}()
 
 	// проходим по всем файлам папки c dash и кидаем в s3
-	errWalk := filepath.Walk(pathOutputLocal, func(path string, info fs.FileInfo, err error) error {
-		// При какой то ошибке нужно задеферить очистку s3 и очистку локального
-		if err != nil {
-			// Возможно стоит добавить лог при ошибке очистки s3
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		_, err = v.s3_service.PutObject(
-			v.config.S3.BucketPrivate,
-			fmt.Sprintf("%s/%s/%s", v.config.S3.KeyPrefixPrivateProcessing, id, info.Name()),
-			v.s3_service.GetContentType(info.Name()),
-			file,
-		)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	// Удалем у себя dash
-	err = os.RemoveAll(pathOutputLocal)
-	if err != nil {
-		v.logger.Warn("Failed clean dir", "pathOutputLocal", pathOutputLocal)
-		return fmt.Errorf("%s: %w", op, err)
-	}
+	prefix := fmt.Sprintf("%s/%s", v.config.S3.KeyPrefixPrivateProcessing, id)
+	errWalk := v.PutDirectory(v.config.S3.BucketPrivate, pathOutputLocal, prefix)
 	if errWalk != nil {
 		// Если была ошибка при загрузке файла, то очищаю s3
-		err := v.s3_service.DeleteObjectsWithPrefix(v.config.S3.BucketPrivate, fmt.Sprintf("%s/%s", v.config.S3.KeyPrefixPrivateProcessing, id))
+		err := v.s3_service.DeleteObjectsWithPrefix(v.config.S3.BucketPrivate, prefix)
 		if err != nil {
 			v.logger.Warn("Failed clean a dash fragments in s3")
 			combineErr := errors.Join(err, errWalk)
@@ -118,15 +124,30 @@ func (v *VideoService) VideoProcess(id string, statusVisibility string) error {
 		}
 		return fmt.Errorf("%s: %w", op, errWalk)
 	}
-	// TODO: Изменить статус на загружено
-
+	if statusVisibility == PUBLIC {
+		// Если видео публичное, то также нужно загрузить на публичный бакет
+		prefix := fmt.Sprintf("%s/%s", v.config.S3.KeyPrefixPublicProcessing, id)
+		errWalk := v.PutDirectory(v.config.S3.BucketPublic, pathOutputLocal, prefix)
+		if errWalk != nil {
+			// Если была ошибка при загрузке файла, то очищаю s3
+			err := v.s3_service.DeleteObjectsWithPrefix(v.config.S3.BucketPrivate, prefix)
+			if err != nil {
+				v.logger.Warn("Failed clean a dash fragments in s3")
+				combineErr := errors.Join(err, errWalk)
+				return fmt.Errorf("%s: %w", op, combineErr)
+			}
+			return fmt.Errorf("%s: %w", op, errWalk)
+		}
+	}
 	return nil
 }
 
-func (v *VideoService) VideoProcessWithPool(d amqp091.Delivery, pool chan struct{}, id string, statusVisibility string) {
+func (v *VideoService) VideoProcessWithPool(ctx context.Context, d amqp091.Delivery, pool chan struct{}, id string, statusVisibility string) {
 	pool <- struct{}{}
+
 	go func() {
-		err := v.VideoProcess(id, statusVisibility)
+		v.repository.UpdateStatus(id, PROCESSING)
+		err := v.VideoProcess(ctx, id, statusVisibility)
 		if err != nil {
 			v.repository.UpdateStatus(id, FAILED)
 			v.logger.Debug("Failed process video")

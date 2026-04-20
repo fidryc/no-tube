@@ -15,7 +15,8 @@ type S3Config struct {
 	KeyPrefixPrivateDraft      string `yaml:"key_prefix_private_draft"`
 	KeyPrefixPrivateProcessing string `yaml:"key_prefix_private_processing"`
 	BucketPrivate              string `yaml:"bucket_private"`
-	KeyPrefixPublic            string `yaml:"key_prefix_public"`
+	BucketPublic               string `yaml:"bucket_public"`
+	KeyPrefixPublicProcessing  string `yaml:"key_prefix_public"`
 }
 
 type RabbitmqConfig struct {
