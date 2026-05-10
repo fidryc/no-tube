@@ -1,8 +1,12 @@
+from app.core.logger import logger
+
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.services.user import UserErrs, UserServiceException
+from app.services.video import VideoErrs
+from app.services.payment import PaymentErrs, PaymentServiceException
 
 
 USER_SERVICE_STATUS_CODES = {
@@ -12,11 +16,33 @@ USER_SERVICE_STATUS_CODES = {
     UserErrs.INVALID_DATA: 400,
     UserErrs.INVALID_PASSWORD: 400,
     UserErrs.TIME_TO_CONFIRM_EMAIL_EXPIRED: 400,
-    UserErrs.UNKNOW: 500,
+    UserErrs.UNKNOWN: 500,
     UserErrs.USER_ALREADY_EXISTS: 409,
     UserErrs.USER_NOT_EXISTS: 404,
     UserErrs.SESSION_EXPIRED: 401,
     UserErrs.SESSION_NOT_EXISTS: 401,
+}
+
+VIDEO_SERVICE_STATUS_CODES = {
+    VideoErrs.INVALID_DATA: 400,
+    VideoErrs.DB: 500,
+    VideoErrs.CACHE: 500,
+    VideoErrs.UNKNOWN: 500,
+    VideoErrs.NO_RIGHTS: 403,
+    VideoErrs.NOT_FOUND: 404,
+    VideoErrs.SUBSCRIPTION_ALREADY_EXISTS: 409,
+    VideoErrs.SUBSCRIPTION_EXPIRE: 403,
+    VideoErrs.CANT_DELETE_LIKE: 422,
+    VideoErrs.LIKE_EXISTS: 422
+}
+
+PAYMENT_SERVICE_STATUS_CODES = {
+    PaymentErrs.INVALID_DATA: 400,
+    PaymentErrs.DB: 500,
+    PaymentErrs.CACHE: 500,
+    PaymentErrs.UNKNOWN: 500,
+    PaymentErrs.NO_RIGHTS: 403,
+    PaymentErrs.NO_FOUND: 404
 }
 
 
@@ -26,7 +52,35 @@ def user_exc_handler(request: Request, exc: UserServiceException):
         status_code=status,
         content={
             "error": {
-                "code": exc.err.value,
+                "code": exc.err,
+                "message": str(exc) if status < 500 else "Internal server error",
+                "details": None
+            }
+        }
+    )
+    
+def video_exc_handler(request: Request, exc: UserServiceException):
+    status = VIDEO_SERVICE_STATUS_CODES[exc.err]
+    logger.info(msg=exc.args[0])
+    return JSONResponse(
+        status_code=status,
+        content={
+            "error": {
+                "code": exc.err,
+                "message": str(exc) if status < 500 else "Internal server error",
+                "details": None
+            }
+        }
+    )
+    
+def payment_exc_handler(request: Request, exc: PaymentServiceException):
+    status = PAYMENT_SERVICE_STATUS_CODES[exc.err]
+    logger.info(msg=exc.args[0])
+    return JSONResponse(
+        status_code=status,
+        content={
+            "error": {
+                "code": exc.err,
                 "message": str(exc) if status < 500 else "Internal server error",
                 "details": None
             }

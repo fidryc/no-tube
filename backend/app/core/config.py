@@ -4,43 +4,52 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
 
+MODE: Literal["DEV", "PROD", "TEST"] = "DEV"
+
+env_file = {
+    "DEV": ".env.dev",
+    "PROD": ".env.prod",
+    "TEST": ".env.test",
+}
+
 class Settings(BaseSettings):
-    MODE: Literal["DEV", "PROD", "TEST"]
-    
     LOG_LEVEL: Literal["INFO", "DEBUG", "WARNING", "ERROR"]
 
-    DEV_DB_HOST: str
-    DEV_DB_PORT: int
-    DEV_DB_NAME: str
-    DEV_DB_USER: str
-    DEV_DB_PASS: str
-
-    TEST_DB_HOST: str
-    TEST_DB_PORT: int
-    TEST_DB_NAME: str
-    TEST_DB_USER: str
-    TEST_DB_PASS: str
-
-    PROD_DB_HOST: str
-    PROD_DB_PORT: int
-    PROD_DB_NAME: str
-    PROD_DB_USER: str
-    PROD_DB_PASS: str
+    DB_HOST: str
+    DB_PORT: int
+    DB_NAME: str
+    DB_USER: str
+    DB_PASS: str
     
-    DEV_RABBITMQ_HOST: str
-    DEV_RABBITMQ_PORT: int
-    DEV_RABBITMQ_USER: str
-    DEV_RABBITMQ_PASS: str
-
-    TEST_RABBITMQ_HOST: str
-    TEST_RABBITMQ_PORT: int
-    TEST_RABBITMQ_USER: str
-    TEST_RABBITMQ_PASS: str
-
-    PROD_RABBITMQ_HOST: str
-    PROD_RABBITMQ_PORT: int
-    PROD_RABBITMQ_USER: str
-    PROD_RABBITMQ_PASS: str
+    @property
+    def DB_URL(self):
+        if not self.__DB_URL:
+            self.__DB_URL = f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return self.__DB_URL
+    
+    RABBITMQ_HOST: str
+    RABBITMQ_PORT: int
+    RABBITMQ_USER: str
+    RABBITMQ_PASS: str
+    
+    __RABBITMQ_URL = None
+    @property
+    def RABBITMQ_URL(self):
+        if not self.__RABBITMQ_URL:
+            self.__RABBITMQ_URL = f"amqp://{self.RABBITMQ_USER}:{self.RABBITMQ_PASS}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/"
+        return self.__RABBITMQ_URL
+    
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_PASS: str
+    
+    # redis://[[username]:[password]@]host[:port][/db-number]
+    __REDIS_URL = None
+    @property
+    def REDIS_URL(self):
+        if not self.__REDIS_URL:
+            self.__REDIS_URL = f"redis://{self.REDIS_USER}:{self.REDIS_PASS}@{self.REDIS_HOST}:{self.REDIS_PORT}"
+        return self.__REDIS_URL
     
     SMTP_HOST: str
     SMTP_PORT: int
@@ -58,48 +67,41 @@ class Settings(BaseSettings):
     ENDPOINT_URL: str
     REGION_NAME: str
     
+    PRIVATE_BUCKET: str
+    PUBLIC_BUCKET: str
+    VIDEO_PROCESSIG_PREFIX: str
+    PUBLIC_VIDEO_BASE_URL: str
+    PUBLIC_VIDEO_PREFIX: str
+    
+    SECRET_NOTIFICATION: str
+    SECRET_KEY_YOUKASSA: str
+    SHOP_ID: int
+    
+    PRIVATE_VIDEO_PROXY_URL: str
+    PRIVATE_VIDEO_PROXY_ENDPOINT: str
     __DB_URL = None
     __RABBITMQ_URL = None
     
-    @property
-    def DB_URL(self):
-        if not self.__DB_URL:
-            DB_URLS = {
-                "TEST": f"postgresql+asyncpg://{self.TEST_DB_USER}:{self.TEST_DB_PASS}@{self.TEST_DB_HOST}:{self.TEST_DB_PORT}/{self.TEST_DB_NAME}",
-                "PROD": f"postgresql+asyncpg://{self.PROD_DB_USER}:{self.PROD_DB_PASS}@{self.PROD_DB_HOST}:{self.PROD_DB_PORT}/{self.PROD_DB_NAME}",
-                "DEV": f"postgresql+asyncpg://{self.DEV_DB_USER}:{self.DEV_DB_PASS}@{self.DEV_DB_HOST}:{self.DEV_DB_PORT}/{self.DEV_DB_NAME}",
-            }
-            self.__DB_URL = DB_URLS[self.MODE]
-        return self.__DB_URL
     
-    @property
-    def RABBITMQ_URL(self):
-        if not self.__DB_URL:
-            URLS = {
-                "TEST": f"amqp://{self.TEST_RABBITMQ_USER}:{self.TEST_RABBITMQ_PASS}@{self.TEST_RABBITMQ_HOST}:{self.TEST_RABBITMQ_PORT}/",
-                "PROD": f"amqp://{self.PROD_RABBITMQ_USER}:{self.PROD_RABBITMQ_PASS}@{self.PROD_RABBITMQ_HOST}:{self.PROD_RABBITMQ_PORT}/",
-                "DEV": f"amqp://{self.DEV_RABBITMQ_USER}:{self.DEV_RABBITMQ_PASS}@{self.DEV_RABBITMQ_HOST}:{self.DEV_RABBITMQ_PORT}/"
-            }
-            self.__RABBITMQ_URL = URLS[self.MODE]
-        return self.__RABBITMQ_URL
     
-    __PRIVATE_SECRET_KEY = None
-    __PUBLIC_SECRET_KEY = None
+    # __PRIVATE_SECRET_KEY = None
+    # __PUBLIC_SECRET_KEY = None
     
-    @property
-    def PRIVATE_SECRET_KEY(self) -> str:
-        if not self.__PRIVATE_SECRET_KEY:
-            self.__PRIVATE_SECRET_KEY = Path(self.PRIVATE_SECRET_KEY_PATH).read_text()
-        return self.__PRIVATE_SECRET_KEY
+    # @property
+    # def PRIVATE_SECRET_KEY(self) -> str:
+    #     if not self.__PRIVATE_SECRET_KEY:
+    #         self.__PRIVATE_SECRET_KEY = Path(self.PRIVATE_SECRET_KEY_PATH).read_text()
+    #     return self.__PRIVATE_SECRET_KEY
     
-    @property
-    def PUBLIC_SECRET_KEY(self) -> str:
-        if not self.__PUBLIC_SECRET_KEY:
-            self.__PUBLIC_SECRET_KEY = Path(self.PUBLIC_SECRET_KEY_PATH).read_text()
-        return self.__PUBLIC_SECRET_KEY
-        
+    # @property
+    # def PUBLIC_SECRET_KEY(self) -> str:
+    #     if not self.__PUBLIC_SECRET_KEY:
+    #         self.__PUBLIC_SECRET_KEY = Path(self.PUBLIC_SECRET_KEY_PATH).read_text()
+    #     return self.__PUBLIC_SECRET_KEY
+    
+    
     class Config:
-        env_file = ".env"
+        env_file = env_file[MODE]
         
 def load_settings():
     load_dotenv(override=True)

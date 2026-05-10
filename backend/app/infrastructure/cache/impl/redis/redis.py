@@ -6,6 +6,7 @@ from app.infrastructure.cache.exception import CacheException
 from app.infrastructure.cache.interface import ICache
 import redis.asyncio as redis
 from app.core.logger import logger
+from app.core.config import settings
 
 class Cache(ICache):
     def __init__(self):
@@ -15,11 +16,15 @@ class Cache(ICache):
         # TODO: Дописать конфиг
         # TODO: Дописать обработку исключений
         self._connection = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            password=settings.REDIS_PASS,
             decode_responses=True,
             socket_connect_timeout=0.2,
             socket_timeout=0.2,
             retry_on_timeout=False,
-            health_check_interval=0
+            health_check_interval=0,
+            
         )
         
         try:

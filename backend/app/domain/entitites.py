@@ -1,5 +1,10 @@
-from dataclasses import dataclass
+# from dataclasses import dataclass
+# Подменяю пока, чтобы не делать для каждой модели еще и схему для апи
+import uuid
+
+from pydantic.dataclasses import dataclass
 import datetime
+import decimal
 from typing import Optional
 
 from app.domain.enums import ProcessingStatuses, Roles, Visibility
@@ -14,22 +19,24 @@ class UserEntity:
     created_at: datetime.datetime
     is_confirmed: bool
     hashed_password: Optional[str] = None
+    avatar_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class VideoEntity:
-    id: int
+    id: uuid.UUID
     title: str
     description: str
     user_id: int
     processing_status: ProcessingStatuses
     visibility: Visibility
     created_at: datetime.datetime
+    preview_key: Optional[str] = None
     
 
 @dataclass(frozen=True)
 class VideoStatsEntity:
-    video_id: int
+    video_id: uuid.UUID
     likes: int
     views: int
     
@@ -37,7 +44,7 @@ class VideoStatsEntity:
 @dataclass(frozen=True)
 class VideoUrlEntity:
     id: int
-    video_id: int
+    video_id: uuid.UUID
     url: str
     quality: str
     format: str
@@ -49,14 +56,14 @@ class VideoUrlEntity:
 
 @dataclass(frozen=True)
 class LikeEntity:
-    video_id: int
+    video_id: uuid.UUID
     user_id: int
     created_at: datetime.datetime
     
 
 @dataclass(frozen=True)
 class HistoryEntity:
-    video_id: int
+    video_id: uuid.UUID
     user_id: int
     watched_at: datetime.datetime
     
@@ -73,3 +80,37 @@ class OauthAccountEntity:
     provider_user_id: str
     user_id: int
     created_at: datetime.datetime
+   
+@dataclass(frozen=True)
+class AuthorSubscriptionEntity:
+    id: int
+    author_id: int
+    days: int
+    price: decimal.Decimal
+    
+@dataclass(frozen=True)
+class UserSubscriptionEntity:
+    id: int
+    user_id: int
+    author_subscription_id: int
+    expires_at: datetime.datetime
+    
+    
+@dataclass(frozen=True)
+class PaymentEntity:
+    id: uuid.UUID
+    user_id: int
+    author_subscription_id: int
+    status: int
+    amount: decimal.Decimal
+    provider_payment_id: int
+    created_at: int
+    
+    
+@dataclass(frozen=True)
+class BalanceEntity:
+    id: uuid.UUID
+    user_id: int
+    amount: decimal.Decimal
+    
+    

@@ -9,7 +9,7 @@ from app.infrastructure.cache.exception import CacheException
 from app.infrastructure.cache.interface import ICache
 from app.repositories.exceptions import BaseRepositoryException
 from app.repositories.interfaces.uow import IUOW
-from app.schemas.schemas import UserSchemaLogin, UserSchemaRegister
+from app.schemas.schemas import UserResponseSchema, UserSchemaLogin, UserSchemaRegister
 from app.repositories.filter.filter import And, Filter, Operation
 from app.tasks.tasks.email import send_code_task
 from app.utils.email.create_email import confirm_email
@@ -17,21 +17,24 @@ from app.utils.email.send import send_email
 from app.utils.hashing import get_hash, check_pwd
 from enum import Enum
 
-class UserErrs(Enum):
+from app.services.video import VideoServiceException
+from app.utils.s3.url import build_url
+from app.services.base_errs import BaseServiceErrs
+from app.services.exception import BaseServiceException
+from app.services.handler import get_handler
+
+class UserErrs(BaseServiceErrs):
     USER_ALREADY_EXISTS = "USER_ALREADY_EXISTS"
     USER_NOT_EXISTS = "USER_NOT_EXISTS"
-    INVALID_DATA = "INVALID_DATA"
     TIME_TO_CONFIRM_EMAIL_EXPIRED = "TIME_TO_CONFIRM_EMAIL_EXPIRED"
-    DB = "DB_ERROR"
-    CACHE = "CACHE_ERROR"
     ATTEMPT_LOGIN_OAUTH = "ATTEMPT_LOGIN_OAUTH"
     INVALID_PASSWORD = "INVALID_PASSWORD"
-    UNKNOW = "UNKNOW"
     SESSION_EXPIRED = "SESSION_EXPIRED"
     SESSION_NOT_EXISTS = "SESSION_NOT_EXISTS"
+    NOT_FOUND = "NOT_FOUND"
     
-class UserServiceException(Exception):
-    def __init__(self, *args, err: UserErrs = UserErrs.UNKNOW, **kwargs):
+class UserServiceException(BaseServiceException):
+    def __init__(self, *args, err: UserErrs = BaseServiceErrs.UNKNOWN, **kwargs):
         super().__init__(*args, **kwargs)
         self.err = err
         
@@ -39,11 +42,14 @@ class UserServiceException(Exception):
 CACHE_EX_SECONDS = 5
 SESSION_EX_DAYS = 30
 
+user_service_exc_handler = get_handler(UserServiceException)
+
 class UserService:
     def __init__(self, uow: IUOW, cache: ICache):
         self.uow = uow
         self.cache = cache
-        
+    
+    @user_service_exc_handler("UserService.create_user")  
     async def create_user(self, user: UserSchemaRegister) -> int:
         """Creating a user from the registration form"""
         # Checking if a user does not exist
@@ -59,12 +65,10 @@ class UserService:
             "hashed_password": hashed_pwd,
             "role": Roles.USER
         }
-        try:
-            user_id = await self.uow.user_repo.add(data_user)
-            return user_id
-        except BaseRepositoryException as e:
-            raise UserServiceException("Failed add user", err=UserErrs.DB) from e
-            
+        
+        user_id = await self.uow.user_repo.add(data_user)
+        return user_id
+        
     def create_session_data(self, session_id: str, user_id: int, expires_at: datetime) -> dict:
         if expires_at < datetime.now(timezone.utc):
             raise UserServiceException("Invalid expires_at", err=UserErrs.INVALID_DATA)
@@ -84,7 +88,7 @@ class UserService:
     
     def session_cache_key(self, session_id: str):
         return f"session:{session_id}"
-        
+       
     async def save_session_to_cache(self, session_data: dict):
         session_data_for_cache = self._to_flat(session_data)
         try:
@@ -94,6 +98,7 @@ class UserService:
         except CacheException as e:
             pass
         
+    @user_service_exc_handler("UserService.register")
     async def register(self, user: UserSchemaRegister) -> str:
         """Creates a user if valid data is passed in and returns the session ID"""
         user_id = await self.create_user(user)
@@ -119,7 +124,7 @@ class UserService:
             logger.critical("Cache dropped. Unable to register.")
             raise UserServiceException("Please try registering later", err=UserErrs.CACHE) from e
         
-    
+    @user_service_exc_handler("UserService.confirm_email")
     async def confirm_email(self, code: str):
         user_id = None
         try:
@@ -130,11 +135,7 @@ class UserService:
         
         if user_id and isinstance(user_id, str) and user_id.isdigit():
             user_id = int(user_id)
-            try:
-                await self.uow.user_repo.update(Filter("id", user_id, Operation.EQ), {"is_confirmed": True})
-            except BaseRepositoryException as e:
-                logger.error("Failed to update user", exc_info=True)
-                raise UserServiceException("Failed to update user", err=UserErrs.DB) from e
+            await self.uow.user_repo.update_many(Filter("id", user_id, Operation.EQ), {"is_confirmed": True})
             logger.debug("Confirm email")
         else:
             raise UserServiceException("Please retry confirm email", err=UserErrs.TIME_TO_CONFIRM_EMAIL_EXPIRED)
@@ -143,6 +144,7 @@ class UserService:
     def get_expire_session_time() -> datetime:  
         return datetime.now(timezone.utc) + timedelta(days=SESSION_EX_DAYS)
     
+    @user_service_exc_handler("UserService.create_session")
     async def create_session(self, user_id: int) -> str:
         session_id = secrets.token_urlsafe(32) 
         session_data = self.create_session_data(
@@ -151,16 +153,13 @@ class UserService:
             self.get_expire_session_time(),
         )
 
-        try:
-            await self.uow.session_repo.add(session_data)
-        except BaseRepositoryException as e: 
-            raise UserServiceException("Error creating session row", err=UserErrs.DB) from e
+        await self.uow.session_repo.add(session_data)
         
         await self.save_session_to_cache(session_data)
         
         return session_id
     
-     
+    @user_service_exc_handler("UserService.login")
     async def login(self, user: UserSchemaLogin) -> str:
         find_users = await self.uow.user_repo.get_by_filters(Filter("email", user.email, Operation.EQ))
         # Checking user exist
@@ -175,10 +174,11 @@ class UserService:
         
         return await self.create_session(find_user.id)
     
+    @user_service_exc_handler("UserService.change_password")
     async def change_password(self, user: UserEntity, new_password: str, old_password: str = None):
         if user.hashed_password is None:
             # for oauth
-            await self.uow.user_repo.update(Filter("id", user.id, Operation.EQ), {"hashed_password": get_hash(new_password)})
+            await self.uow.user_repo.update_many(Filter("id", user.id, Operation.EQ), {"hashed_password": get_hash(new_password)})
             return
         elif old_password == new_password:
             raise UserServiceException("The new password must be different from the old one", err=UserErrs.INVALID_PASSWORD)
@@ -186,8 +186,9 @@ class UserService:
         if not check_pwd(old_password, user.hashed_password):
             raise UserServiceException("Incorrect old password.", err=UserErrs.INVALID_PASSWORD)
         
-        await self.uow.user_repo.update(Filter("id", user.id, Operation.EQ), {"hashed_password": get_hash(new_password)})
-        
+        await self.uow.user_repo.update_many(Filter("id", user.id, Operation.EQ), {"hashed_password": get_hash(new_password)})
+    
+    @user_service_exc_handler("UserService.authenticate_user")   
     async def authenticate_user(self, session_id: str) -> UserEntity:
         session_data = None
         try:
@@ -200,10 +201,7 @@ class UserService:
             expires_at = datetime.fromisoformat(session_data["expires_at"])
             user_id = int(session_data["user_id"])
         else:
-            try:
-                session = await self.uow.session_repo.get_by_id(id=session_id)
-            except BaseRepositoryException as e:
-                raise UserServiceException("Failed get session from db", err=UserErrs.DB) from e
+            session = await self.uow.session_repo.get_by_id(id=session_id)
             if not session:
                 raise UserServiceException("You need to login to your account", err=UserErrs.SESSION_NOT_EXISTS) # TODO: поменять логику работы исключений
             expires_at = session.expires_at
@@ -216,6 +214,24 @@ class UserService:
             raise UserServiceException("You need to log in to your account", err=UserErrs.SESSION_EXPIRED)
         
         return await self.get_user(user_id)
+    
+    async def get_by_id(self, user_id: int) -> UserResponseSchema:
+        user = await self.uow.user_repo.get_by_id(user_id)
+        if not user:
+            raise UserServiceException("Not found user", err=UserErrs.USER_NOT_EXISTS)
+        user = self.convert_user_to_response(user)
+        return user
+        
+    @classmethod
+    def convert_user_to_response(cls, user: UserEntity) -> UserResponseSchema:
+        return UserResponseSchema(
+            id = user.id,
+            username = user.username,
+            email = user.email,
+            created_at = user.created_at,
+            is_confirmed = user.is_confirmed,
+            avatar_url = build_url(user.avatar_key) if user.avatar_key else None,
+        )
         
     def user_cache_key(self, user_id: int) -> str:
         return f"user:{user_id}"
@@ -229,7 +245,8 @@ class UserService:
             "created_at": user.created_at.isoformat(),
             "is_confirmed": str(int(user.is_confirmed)) # возможен трабл с типом
         }
-        
+    
+    @user_service_exc_handler("UserService.get_user")    
     async def get_user(self, user_id: int) -> UserEntity:
         user_data: Optional[dict] = None
         try:
@@ -238,15 +255,13 @@ class UserService:
             pass
         
         if user_data:
+            user_data["id"] = int(user_data["id"])
             user_data["created_at"] = datetime.fromisoformat(user_data["created_at"])
             user_data["role"] = Roles[user_data["role"]]
             user_data["is_confirmed"] = bool(int(user_data["is_confirmed"]))
             return UserEntity(**user_data)
         
-        try:
-            user = await self.uow.user_repo.get_by_id(user_id)
-        except BaseRepositoryException as e:
-            raise UserServiceException("Failed get user from db", err=UserErrs.DB) from e
+        user = await self.uow.user_repo.get_by_id(user_id)
         
         if not user:
             raise UserServiceException("User not found", err=UserErrs.USER_NOT_EXISTS)
@@ -259,7 +274,7 @@ class UserService:
         
         return user
     
-    
+    @user_service_exc_handler("UserService.processing_oauth_account")
     async def processing_oauth_account(
         self,
         sub: str,
@@ -274,15 +289,13 @@ class UserService:
             then we'll create a session for this user.
             Otherwise, we'll create the user and return the session for them.
         """
-        try:
-            oauth_accounts = await self.uow.oauth_account_repo.get_by_filters(
-                And(
-                    Filter("provider", provider, Operation.EQ),
-                    Filter("provider_user_id", sub, Operation.EQ),
-                )
+        
+        oauth_accounts = await self.uow.oauth_account_repo.get_by_filters(
+            And(
+                Filter("provider", provider, Operation.EQ),
+                Filter("provider_user_id", sub, Operation.EQ),
             )
-        except BaseRepositoryException as e:
-            raise UserServiceException("Failed to get oauth account", err=UserErrs.DB) from e
+        )
         if oauth_accounts:
             # Если oauth найден - получаем user_id 
             oauth_account = oauth_accounts[0]
@@ -290,12 +303,10 @@ class UserService:
         
         
         # Если такого oauth аккаунта нет - Пытаемся найти пользователя в системе
-        try:
-            users = await self.uow.user_repo.get_by_filters(
-                Filter("email", email, Operation.EQ)
-            )
-        except BaseRepositoryException as e:
-            raise UserServiceException("Failed to get user by email") from e
+        
+        users = await self.uow.user_repo.get_by_filters(
+            Filter("email", email, Operation.EQ)
+        )
            
         user_id = None
         if users:
@@ -310,12 +321,10 @@ class UserService:
                 "is_confirmed": is_confirmed
             }
             # TODO: возможно стоит отправлять сразу письмо с подверждением если is_confirmed - false
-            try:
-                user_id = await self.uow.user_repo.add(
-                    user_data
-                )
-            except BaseRepositoryException as e:
-                raise UserServiceException("Failed add user", err=UserErrs.DB) from e
+            
+            user_id = await self.uow.user_repo.add(
+                user_data
+            )
 
         # После получения user_id - можем создать oauth аккаунт
         
@@ -324,10 +333,19 @@ class UserService:
             "provider_user_id": sub,
             "user_id": user_id
         }
-        try:
-            await self.uow.oauth_account_repo.add(oauth_account_data, id_title_col=None)
-        except BaseRepositoryException as e:
-            raise UserServiceException("Failed add oauth_account", err=UserErrs.DB) from e
+        await self.uow.oauth_account_repo.add(oauth_account_data, id_title_col=None)
         
         return await self.create_session(user_id=user_id)
+    
+    @user_service_exc_handler("UserService.update_key_avatar")
+    async def update_key_avatar(self, avatar_key: str, user_id: int) -> int:
+        if not avatar_key.startswith("avatars/users/") or avatar_key.split("/")[-1].split(".")[-2] != str(user_id):
+            raise UserServiceException("Incorrect key avatar", err=UserErrs.INVALID_DATA)
+        id = await self.uow.user_repo.update_many(
+            Filter("id", user_id),
+            {
+                "avatar_key": avatar_key
+            }
+        )
+        return id
         

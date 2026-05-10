@@ -9,6 +9,9 @@ from app.api.handlers.add_handlers import add_exception_handlers
 from app.tasks.broker import broker
 import taskiq_fastapi
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,7 +37,8 @@ add_exception_handlers(app=app)
 
 origins = [
     "http://localhost:5173",
-    "https://frontend-app.com" # TODO: change in production
+    "https://qxjnmn-31-134-188-231.ru.tuna.am", # TODO: change in production
+    "http://127.0.0.1:5500",
 ]
 
 app.add_middleware(
@@ -44,3 +48,13 @@ app.add_middleware(
     allow_methods=["*"],    # Allow all methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],    # Allow all headers
 )
+
+
+@app.get("/player")
+async def test_player():
+    return FileResponse("app/static/player.html") 
+    # TODO: Удалить
+    
+@app.get("/payment")
+async def payment():
+    return FileResponse("app/static/payment.html") 

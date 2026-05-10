@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends
@@ -10,3 +11,10 @@ async def get_uow_init() -> AsyncGenerator[UOW, None]:
         yield uow
 
 UOWDepInit = Annotated[UOW, Depends(get_uow_init)]
+
+def get_uow_init_with_isolation_level(isolation_level: str):
+    @asynccontextmanager
+    async def inner():
+        async with UOW(isolation_level) as uow:
+            yield uow
+    return inner

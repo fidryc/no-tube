@@ -12,7 +12,7 @@ from app.api.depends.uow import UOWDepInit
 from app.api.depends.user import get_user
 from app.domain.entitites import UserEntity
 from app.infrastructure.messages_broker.implementations.rabbitmq.producer import Producer
-from app.schemas.schemas import UserSchemaLogin, UserSchemaRegister
+from app.schemas.schemas import UploadUrlResponse, UserResponseSchema, UserSchemaLogin, UserSchemaRegister, YandexParamsResponse
 from app.services.user import SESSION_EX_DAYS, UserErrs, UserService, UserServiceException
 from app.utils.oauth.google.generate_url import generate_oauth_redirect_url
 from app.utils.oauth.google.get_user_data import get_user_info
@@ -23,24 +23,33 @@ from app.api.depends.session import SessionDep
 from app.db.models import User
 from app.utils.oauth.yandex.get_query_params import get_query_params
 from app.utils.oauth.yandex.get_user_data import get_yandex_user_data
+from app.infrastructure.s3.client import S3_CONFIG, S3Client
 
 router = APIRouter(
     prefix="/api/v1/user",
-    tags=["Users"]
+    tags=["Users"]  
 )
 
 
 SECONDS_IN_DAY = 60 * 60 * 24
 SESSION_EX_SECONDS = SECONDS_IN_DAY * SESSION_EX_DAYS
 
-
+@router.get("/{id}")
+async def get_by_id(
+    id: int,
+    uow: UOWDepInit,
+    cache: CacheDep,
+    response: Response
+) -> UserResponseSchema:
+    user = await UserService(uow, cache).get_by_id(id)
+    return user
+    
 @router.post("/register")
 async def register(user: UserSchemaRegister, uow: UOWDepInit, cache: CacheDep, response: Response):
-    # TODO: добавить валидацию для почты
     session_id = await UserService(uow, cache).register(user)
     response.set_cookie(COOKIE_SESSION_ID, session_id, max_age=SESSION_EX_SECONDS) # TODO: Изменить настройки безопасности
 
-
+        
 @router.post("/login")
 async def login(user: UserSchemaLogin, uow: UOWDepInit, cache: CacheDep, response: Response):
     session_id = await UserService(uow, cache).login(user)
@@ -62,12 +71,37 @@ async def quit(response: Response):
 
 
 @router.get("/me")
-async def authentication(user: UserEntity = Depends(get_user)):
+async def authentication(user: UserEntity = Depends(get_user)) -> UserResponseSchema:
+    return UserService.convert_user_to_response(user)
+    
+@router.post("/me/avatar/upload-url")
+async def avatar_upload_url(
+    user: UserEntity = Depends(get_user)
+) -> UploadUrlResponse:
+    client = S3Client(**S3_CONFIG)
+
+    key = f"avatars/users/{user.id}.jpg"
+
+    url = await client.presigned_url_put(
+        "no-tube-videos-public",
+        key,
+        3600
+    )
+
     return {
-        "username": user.username,
-        "email": user.email,
-        "role": user.role
-    } # TODO поменять на схему
+        "upload_url": url,
+        "key": key
+    }
+    
+@router.patch("/me/avatar")
+async def update_avatar(
+    key: str,
+    uow: UOWDepInit,
+    cache: CacheDep,
+    user: UserEntity = Depends(get_user),
+):
+    user_service = UserService(uow, cache)
+    await user_service.update_key_avatar(key, user.id)
 
     
 @router.patch("/change_password")
@@ -93,7 +127,7 @@ async def callback_google(code: Annotated[str, Body(embed=True)], uow: UOWDepIni
     
     
 @router.get("/yandex/query_params")
-async def query_params_yandex() -> dict:
+async def query_params_yandex() -> YandexParamsResponse:
     return get_query_params()
 
 

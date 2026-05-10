@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Test YooKassa Payment</title>
+    <script src="https://yookassa.ru/checkout-widget/v1/checkout-widget.js"></script>
+</head>
+<body>
+
+<h2>Оплата подписки</h2>
+
+<button onclick="pay()">Оплатить</button>
+
+<div id="payment-form"></div>
+
+<script>
+async function pay() {
+    const response = await fetch("/api/payment/confirmation_token?sub_id=2", {
+        method: "POST",
+        credentials: "include"
+    });
+
+    const data = await response.json();
+
+    const token = data.confirmation_token;
+
+    const checkout = new window.YooMoneyCheckoutWidget({
+        confirmation_token: token,
+        return_url: window.location.origin + "/success",
+
+        error_callback: function(error) {
+            console.error("PAYMENT ERROR:", error);
+            alert("Ошибка оплаты");
+        }
+    });
+
+    checkout.render("payment-form");
+}
+</script>
+
+</body>
+</html>

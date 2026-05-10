@@ -1,6 +1,6 @@
 from typing import Optional, Protocol, Self
 
-from app.repositories.interfaces.repositories import IHistoryRepository, ILikesRepository, IOauthAccountRepository, ISessionRepository, IUserRepository, IVideoRepository, IVideoStatsRepository, IVideoUrlsRepository
+from app.repositories.interfaces.repositories import IAuthorSubscriptionRepository, IBalanceRepository, IHistoryRepository, ILikesRepository, IOauthAccountRepository, IPaymentRepository, ISessionRepository, IUserRepository, IUserSubscriptionRepository, IVideoRepository, IVideoStatsRepository, IVideoUrlsRepository
 
 class IUOW(Protocol):
     def __init__(self):
@@ -12,6 +12,10 @@ class IUOW(Protocol):
         self.__history_repo: Optional[IHistoryRepository] = None
         self.__session_repo: Optional[ISessionRepository] = None
         self.__oauth_account_repo: Optional[IOauthAccountRepository] = None
+        self.__author_subscriptions_repo: Optional[IAuthorSubscriptionRepository] = None
+        self.__user_subscriptions_repo: Optional[IUserSubscriptionRepository] = None
+        self.__payment_repo: Optional[IPaymentRepository] = None
+        self.__balance_repo: Optional[IBalanceRepository] = None
 
     async def __aenter__(self) -> Self: ...
     async def __aexit__(self, exc_type, exc, tb) -> None: ...
@@ -50,3 +54,19 @@ class IUOW(Protocol):
     @property
     def oauth_account_repo(self) -> IOauthAccountRepository:
         return self.__oauth_account_repo
+    
+    @property
+    def author_subscriptions_repo(self) -> IAuthorSubscriptionRepository:
+        return self.__author_subscriptions_repo
+    
+    @property
+    def user_subscriptions_repo(self) -> IUserSubscriptionRepository:
+        return self.__user_subscriptions_repo
+    
+    @property
+    def payment_repo(self) -> IPaymentRepository:
+        return self.__payment_repo
+    
+    @property
+    def balance_repo(self) -> IBalanceRepository:
+        return self.__balance_repo

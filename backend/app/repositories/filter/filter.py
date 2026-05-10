@@ -6,7 +6,7 @@ from app.repositories.filter.enum import Operation
 
 
 class Filter:
-    def __init__(self, col_title: str, value: Any, operation: Operation):
+    def __init__(self, col_title: str, value: Any, operation: Operation=Operation.EQ):
         """
         col_title - table column name
         value - value for operation

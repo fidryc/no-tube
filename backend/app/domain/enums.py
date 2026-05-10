@@ -13,7 +13,15 @@ class ProcessingStatuses(enum.Enum):
     READY = "READY"
     FAILED = "FAILED"
 
+
 class Visibility(enum.Enum):
     PUBLIC = "PUBLIC" # доступно всем
     PRIVATE = "PRIVATE" # доступно только владельцу
-    UNLISTED = "UNLISTED" # доступно по ссылке
+    SUBSCRIPTION = "SUBSCRIPTION" # доступно владельцу и его платным подписчикам
+
+    
+class PaymentStatuses(enum.Enum):
+    PENDING = "PENDING"
+    PAID = "PAID"
+    FAILED = "FAILED"
+    

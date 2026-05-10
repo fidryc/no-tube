@@ -1,5 +1,6 @@
 from taskiq_aio_pika import AioPikaBroker
+from app.core.config import settings
 
 broker = AioPikaBroker(
-    url="amqp://guest:guest@localhost:5672" # TODO: вынести в конфиг
+    url= settings.RABBITMQ_URL
 )

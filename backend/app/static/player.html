@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Player</title>
+  <!-- jsDelivr — стабильный CDN, берёт прямо из npm -->
+  <script src="https://cdn.jsdelivr.net/npm/dashjs@5.1.1/dist/modern/umd/dash.all.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    video { width: 100%; max-width: 1280px; }
+  </style>
+</head>
+<body>
+  <video id="player" controls></video>
+  <script>
+    const VIDEO_ID = "65030472-64d1-4e6e-9427-cbe6a2a48c4e";
+    const API_BASE = `/api/v1/video/${VIDEO_ID}`;
+    const urlCache = new Map();
+
+    async function getPresignedUrl(fileName) {
+      if (urlCache.has(fileName)) return urlCache.get(fileName);
+      const resp = await fetch(`${API_BASE}/presigned-url/${fileName}`, {
+        credentials: "include"
+      });
+      if (!resp.ok) throw new Error(`Presign failed: ${resp.status}`);
+      const { url } = await resp.json();
+      setTimeout(() => urlCache.delete(fileName), 50 * 60 * 1000);
+      urlCache.set(fileName, url);
+      return url;
+    }
+
+    async function init() {
+      const video = document.getElementById("player");
+      const player = dashjs.MediaPlayer().create();
+
+      player.updateSettings({
+        streaming: {
+          request: { withCredentials: true }
+        }
+      });
+
+      // ✅ Сначала interceptor, потом initialize
+      player.addRequestInterceptor(async (request) => {
+        if (request.url && request.url.includes("/presigned-url/")) {
+          const fileName = request.url.split("/presigned-url/").pop().split("?")[0];
+          try {
+            request.url = await getPresignedUrl(fileName);
+          } catch (err) {
+            console.error("[Interceptor]", err);
+          }
+        }
+        return request;
+      });
+
+      player.initialize(video, `${API_BASE}/dash`, true);
+
+      player.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+        console.error("[dash error]", e);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

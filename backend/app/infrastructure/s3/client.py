@@ -41,10 +41,19 @@ class S3Client:
             )
             print(resp)
             
-    async def generate_presigned_url_put(self, bucket: str, key: str, expires: int):
+    async def presigned_url_put(self, bucket: str, key: str, expires: int):
         async with self.get_client() as client:
             url = await client.generate_presigned_url(
                 'put_object',
+                Params={"Bucket": bucket, 'Key': key},
+                ExpiresIn=expires
+            )
+            return url
+        
+    async def presigned_url_get(self, bucket: str, key: str, expires: int) -> str:
+        async with self.get_client() as client:
+            url = await client.generate_presigned_url(
+                'get_object',
                 Params={"Bucket": bucket, 'Key': key},
                 ExpiresIn=expires
             )
@@ -62,6 +71,31 @@ class S3Client:
             except Exception as e:
                 if hasattr(e, "response") and e.response['Error']['Code'] == "404":
                     return None
-                else:
-                    # Handle other potential errors (e.g., 403 Forbidden)
+                else: 
                     raise e
+                
+    async def get_s3_file(self, bucket: str, key: str) -> str:
+        async with self.get_client() as client:
+            response = await client.get_object(Bucket=bucket, Key=key)
+            
+            async with response["Body"] as stream:
+                data = await stream.read()
+                return data.decode("utf-8")
+    
+    async def get_keys_of_objs_with_prefix(self, bucket: str, prefix: str) -> dict[str, str]:
+        keys_all = []
+        async with self.get_client() as client:
+            paginator = client.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                if 'Contents' in page:
+                    keys = [{'Key': obj['Key']} for obj in page['Contents']]
+                    keys_all.append(keys)
+        return keys_all
+                
+    async def delete_with_prefix(self, bucket: str, prefix: str) -> str:
+        keys = self.get_keys_of_objs_with_prefix(bucket, prefix)
+        async with self.get_client() as client:
+            await client.delete_objects(
+                Bucket=bucket,
+                Delete={"Objects": keys}
+            )

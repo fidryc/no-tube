@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import Depends, HTTPException, Request
 
 from app.api.constants import COOKIE_SESSION_ID
@@ -13,8 +15,18 @@ async def get_session_id(request: Request):
 
 
 async def get_user(uow: UOWDepInit, cache: CacheDep, session_id = Depends(get_session_id)) -> UserEntity:
-    # сделать обработку исключения
     try:
-        return await UserService(uow, cache).authenticate_user(session_id)
+        user_service = UserService(uow, cache)
+        user = await user_service.authenticate_user(session_id)
+        return user
     except UserServiceException as e:
         raise HTTPException(status_code=USER_SERVICE_STATUS_CODES[e.err], detail="Failed to get user")
+
+
+async def get_user_if_exists(uow: UOWDepInit, cache: CacheDep, session_id = Depends(get_session_id)) -> Optional[UserEntity]:
+    try:
+        user_service = UserService(uow, cache)
+        user = await user_service.authenticate_user(session_id)
+        return user
+    except UserServiceException as e:
+        return None
