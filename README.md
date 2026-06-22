@@ -6,7 +6,8 @@
 
 ## Видео-демо
 
-https://github.com/user-attachments/assets/20cdfab4-2ed0-47ab-8655-9d146e7b0afe
+https://github.com/user-attachments/assets/0125baac-4908-4a71-96b7-36ea2126d065
+
 
 ## Содержание
 
