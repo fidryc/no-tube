@@ -5,10 +5,10 @@ import uuid
 from app.api.depends.cache import CacheDep
 from app.api.depends.uow import UOWDepInit
 from app.api.depends.user import get_user, get_user_if_exists
-from app.domain.entitites import AuthorSubscriptionEntity, UserEntity, VideoEntity
+from app.domain.entitites import AuthorSubscriptionEntity, UserEntity, VideoEntity, VideoWithUserSchema
 from app.infrastructure.messages_broker.implementations.rabbitmq.producer import Producer
 from app.infrastructure.s3.client import S3_CONFIG, S3Client
-from app.schemas.schemas import AuthorSubscriptionResponse, IdResponse, LikeResponse, PaymentDataForFormResponse, StatusResponse, SubscriptionCheckResponse, SubscriptionIdResponse, SubscriptionSchema, UUIDResponse, UpdatePreviewSchema, UploadUrlPersignedResponse, UploadUrlResponse, UserResponseSchema, UserSubsResponse, VideoProcessingResponse, VideoResponseSchema, VideoSchema, VideoStatsResponse, VideoUpdateSchema
+from app.schemas.schemas import AuthorSubscriptionResponse, IdResponse, LikeResponse, PaymentDataForFormResponse, StatusResponse, SubscriptionCheckResponse, SubscriptionIdResponse, SubscriptionSchema, UUIDResponse, UpdatePreviewSchema, UploadUrlPersignedResponse, UploadUrlResponse, UserResponseSchema, UserSubsResponse, VideoProcessingResponse, VideoResponseSchema, VideoResponseWithUserSchema, VideoSchema, VideoStatsResponse, VideoUpdateSchema
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
@@ -17,14 +17,14 @@ from app.core.config import settings
 from app.services.payment import PaymentService
 from app.domain.enums import ProcessingStatuses, Visibility
 from app.api.depends.services import VideoServiceDep
+from app.api.depends.producer import ProducerDep
 
 
 router = APIRouter(
     prefix="/api/v1/videos",
     tags=["Videos"]
 )
-    
-        
+
 @router.post("/")
 async def create(
     video: VideoSchema,
@@ -34,7 +34,6 @@ async def create(
     id = await video_service.create(user, video)
     return {"id": id}
 
-
 @router.get("/")
 async def get(
     video_service: VideoServiceDep,
@@ -43,7 +42,7 @@ async def get(
     created_at: Optional[datetime.datetime] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
-) -> list[VideoResponseSchema]:
+) -> list[VideoResponseWithUserSchema]:
     videos = await video_service.get_with_filters(
         title,
         user_id,
@@ -104,7 +103,7 @@ async def preview_upload_url(
     key = f"previews/videos/{id}.jpg"
 
     upload_url = await client.presigned_url_put(
-        "no-tube-videos",
+        settings.PUBLIC_BUCKET,
         key,
         3600
     )
@@ -139,7 +138,7 @@ async def update_preview(
 async def my_videos(
     video_service: VideoServiceDep,
     user: UserEntity = Depends(get_user),
-) -> list[VideoResponseSchema]:
+) -> list[VideoResponseWithUserSchema]:
     return await video_service.get_with_filters(
         user_id=user.id
     )
@@ -178,6 +177,7 @@ async def get_one(
     user: UserEntity = Depends(get_user_if_exists)
 ) -> VideoEntity:
     user_id = user.id if user else None
+    print(user_id)
     await video_service.validate_rights_for_view(id, user_id)
     return await video_service.get_one(id)
 
@@ -223,7 +223,7 @@ async def upload_url(
     """Возвращаем ссылку на s3 объект для загрузки."""
     await video_service.validate_rights_for_change(id, user.id)
     client = S3Client(**S3_CONFIG)
-    upload_url = await client.presigned_url_put("no-tube-videos", str(id), 3600)
+    upload_url = await client.presigned_url_put(settings.PRIVATE_BUCKET, f"upload/draft/{str(id)}", 3600)
     return {"upload_url": upload_url}
 
 @router.get("/{id}/dash")
@@ -260,16 +260,15 @@ async def upload_url(
 async def create_task_process_video(
     id: uuid.UUID,
     video_service: VideoServiceDep,
+    producer: ProducerDep,
     user: UserEntity = Depends(get_user)
 ):
     await video_service.validate_rights_for_change(id, user.id)
     video = await video_service.get_one(id)
     client = S3Client(**S3_CONFIG)
-    if not await client.check_exists_obj("no-tube-videos", str(id)):
+    if not await client.check_exists_obj(settings.PRIVATE_BUCKET, f"upload/draft/{str(id)}"):
         raise HTTPException(404)
-    producer = Producer(settings.RABBITMQ_URL)
-    async with producer:
-        await producer.publish("video_process", {"video_name": str(id), "visibility": video.visibility}) 
+    await producer.publish("video_process", {"video_name": str(id), "visibility": video.visibility.value}) 
 
 @router.post("/subscriptions/authors/")
 async def new_subscription(
@@ -289,10 +288,11 @@ async def new_subscription(
 async def get_sub_videos(
     author_id: int,
     video_service: VideoServiceDep,
-) -> list[VideoEntity]:
+) -> list[VideoResponseWithUserSchema]:
     videos = await video_service.get_with_filters(
         user_id=author_id,
-        visibility=Visibility.SUBSCRIPTION
+        visibility=Visibility.SUBSCRIPTION,
+        processing_status=ProcessingStatuses.READY
     )
     return videos
 
@@ -335,4 +335,3 @@ async def is_user_on_sub(
 ) -> SubscriptionCheckResponse:
     is_subscribed = await VideoService(uow, cache).is_subscribed(user.id, sub_id)
     return {"is_subscribed": is_subscribed}
-

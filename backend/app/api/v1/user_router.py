@@ -24,6 +24,7 @@ from app.db.models import User
 from app.utils.oauth.yandex.get_query_params import get_query_params
 from app.utils.oauth.yandex.get_user_data import get_yandex_user_data
 from app.infrastructure.s3.client import S3_CONFIG, S3Client
+from app.core.config import settings
 
 router = APIRouter(
     prefix="/api/v1/user",
@@ -34,15 +35,6 @@ router = APIRouter(
 SECONDS_IN_DAY = 60 * 60 * 24
 SESSION_EX_SECONDS = SECONDS_IN_DAY * SESSION_EX_DAYS
 
-@router.get("/{id}")
-async def get_by_id(
-    id: int,
-    uow: UOWDepInit,
-    cache: CacheDep,
-    response: Response
-) -> UserResponseSchema:
-    user = await UserService(uow, cache).get_by_id(id)
-    return user
     
 @router.post("/register")
 async def register(user: UserSchemaRegister, uow: UOWDepInit, cache: CacheDep, response: Response):
@@ -65,11 +57,6 @@ async def confirm(token: str, uow: UOWDepInit, cache: CacheDep):
 async def quit(response: Response):
     response.delete_cookie(COOKIE_SESSION_ID)
 
-
-# @router.post("/delete")
-# async def delete(uow: UOWDepInit, cache: CacheDep, user: UserEntity = Depends(get_user)):
-
-
 @router.get("/me")
 async def authentication(user: UserEntity = Depends(get_user)) -> UserResponseSchema:
     return UserService.convert_user_to_response(user)
@@ -83,7 +70,7 @@ async def avatar_upload_url(
     key = f"avatars/users/{user.id}.jpg"
 
     url = await client.presigned_url_put(
-        "no-tube-videos-public",
+        settings.PUBLIC_BUCKET,
         key,
         3600
     )
@@ -146,3 +133,13 @@ async def yandex_callback(access_token: Annotated[str, Body(embed=True)], uow: U
         username=user.username if user.username else None
     )
     response.set_cookie(COOKIE_SESSION_ID, session_id, max_age=SESSION_EX_SECONDS)
+    
+@router.get("/{id}")
+async def get_by_id(
+    id: int,
+    uow: UOWDepInit,
+    cache: CacheDep,
+    response: Response
+) -> UserResponseSchema:
+    user = await UserService(uow, cache).get_by_id(id)
+    return user

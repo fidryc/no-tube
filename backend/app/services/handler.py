@@ -53,7 +53,6 @@ def get_handler(
                     raise
 
                 except Exception as e:
-                    print(e)
                     raise service_exc(
                         f"{context}: Unknown err",
                         err=BaseServiceErrs.UNKNOWN

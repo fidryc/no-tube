@@ -24,3 +24,4 @@ async def delete_users():
             logger.debug("Error deleting users with unverified email addresses")
             
         await session.commit()
+        

@@ -8,13 +8,13 @@ import hashlib
 from pydantic import BaseModel
 
 from app.api.depends.cache import CacheDep
-from app.api.depends.uow import UOWDepInit, get_uow_init_with_isolation_level
+from app.api.depends.uow import UOWDepInit, get_uow_init, get_uow_init_with_isolation_level
 from app.core.config import settings
 from urllib.parse import quote
 
 from app.services.video import VideoService
 from app.api.depends.user import get_user
-from app.domain.entitites import UserEntity
+from app.domain.entitites import BalanceEntity, UserEntity
 import aiohttp
 
 from app.repositories.implementations.sqlalchemy.uow import UOW
@@ -129,3 +129,15 @@ async def confirmation_token(
             return {
                 "confirmation_token": token
             }
+            
+@router.post("/balance")
+async def notification(
+    uow: UOWDepInit,
+    cache: CacheDep,
+    user: UserEntity = Depends(get_user)
+) -> BalanceEntity:
+    video_service = VideoService(uow, cache)
+    payment_service = PaymentService(uow, cache, video_service)
+    balance = await payment_service.get_balance(user.id)
+
+    return balance

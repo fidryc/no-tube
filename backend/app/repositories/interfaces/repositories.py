@@ -12,9 +12,11 @@ from app.domain.entitites import (
     LikeEntity,
     HistoryEntity,
     SessionEntity,
-    OauthAccountEntity
+    OauthAccountEntity,
+    VideoWithUserSchema
 )
 from app.db.models import Balance
+from app.repositories.filter.filter import And, Filter, Not, Or
 
 Model = TypeVar("Model")
 
@@ -24,7 +26,14 @@ class IUserRepository(IRepository[Model, UserEntity], Protocol):
 
 
 class IVideoRepository(IRepository[Model, VideoEntity], Protocol):
-    pass
+    async def get_by_filters_with_users(
+        self,
+        *filters: And | Or | Not | Filter,
+        order_by_col_title: str | None = None,
+        desc: bool | None = None,
+        limit: int | None = None,
+        offset: int | None = None
+    ) -> list[VideoWithUserSchema]: pass
 
 
 class IVideoStatsRepository(IRepository[Model, VideoStatsEntity], Protocol):

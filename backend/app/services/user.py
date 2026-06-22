@@ -39,7 +39,7 @@ class UserServiceException(BaseServiceException):
         self.err = err
         
     
-CACHE_EX_SECONDS = 5
+CACHE_EX_SECONDS = 60*6
 SESSION_EX_DAYS = 30
 
 user_service_exc_handler = get_handler(UserServiceException)
@@ -109,7 +109,6 @@ class UserService:
             user_id=user_id,
             email_to=user.email
         )
-        # TODO: отправка письма с кодом для подверждения
         
         session_id = await self.create_session(user_id=user_id)
         return session_id
@@ -187,6 +186,7 @@ class UserService:
             raise UserServiceException("Incorrect old password.", err=UserErrs.INVALID_PASSWORD)
         
         await self.uow.user_repo.update_many(Filter("id", user.id, Operation.EQ), {"hashed_password": get_hash(new_password)})
+        await self.cache.dict_delete(self.user_cache_key(user.id))
     
     @user_service_exc_handler("UserService.authenticate_user")   
     async def authenticate_user(self, session_id: str) -> UserEntity:
@@ -237,14 +237,20 @@ class UserService:
         return f"user:{user_id}"
     
     def user_to_cache_data(self, user: UserEntity):
-        return {
+        data = {
             "id": user.id,
             "username": user.username,
             "email": user.email,
             "role": user.role.value,
             "created_at": user.created_at.isoformat(),
-            "is_confirmed": str(int(user.is_confirmed)) # возможен трабл с типом
+            "is_confirmed": str(int(user.is_confirmed)), # возможен трабл с типом
+            "avatar_key": user.avatar_key,  
         }
+        if user.hashed_password:
+            data["hashed_password"] = user.hashed_password
+        if user.avatar_key:
+            data["avatar_key"] = user.avatar_key
+        return data
     
     @user_service_exc_handler("UserService.get_user")    
     async def get_user(self, user_id: int) -> UserEntity:
@@ -347,5 +353,6 @@ class UserService:
                 "avatar_key": avatar_key
             }
         )
+        await self.cache.dict_delete(self.user_cache_key(user_id))
         return id
         

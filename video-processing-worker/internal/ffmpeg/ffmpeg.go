@@ -35,6 +35,9 @@ func CreateDash(ctx context.Context, inputPath string, outputPath string) error 
 	cmd := exec.CommandContext(
 		ctx,
 		"ffmpeg",
+
+		"-threads", "2",
+
 		"-i", inputPath,
 
 		"-map", "0:v",
@@ -83,6 +86,9 @@ func ConvertToQualityVideo(outputDir string, quality string, inputPath string) e
 
 	cmd := exec.Command(
 		"ffmpeg",
+
+		"-threads", "2",
+
 		"-i", inputPath,
 
 		"-c:v", "libx264",

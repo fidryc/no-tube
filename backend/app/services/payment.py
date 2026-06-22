@@ -12,6 +12,7 @@ from app.services.video import VideoService
 from app.services.base_errs import BaseServiceErrs
 from app.services.exception import BaseServiceException
 from app.services.handler import get_handler
+from app.domain.entitites import BalanceEntity
 
 
 class PaymentErrs(BaseServiceErrs):
@@ -183,3 +184,10 @@ class PaymentService:
         if payment.user_id != user_id or \
             payment.author_subscription_id != subscription_id:
                 raise PaymentServiceException("Not found payment", err=PaymentErrs.NO_FOUND)
+            
+    @payment_service_handler("PaymentService.get_balance")
+    async def get_balance(self, user_id: int) -> BalanceEntity:
+        balance = await self.uow.balance_repo.get_by_id(user_id, "user_id")
+        if not balance:
+            raise PaymentServiceException("Not found payment", err=PaymentErrs.NO_FOUND)
+        return balance

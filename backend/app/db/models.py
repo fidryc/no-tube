@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 import uuid
-from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped
+from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 from sqlalchemy import Integer, Numeric, PrimaryKeyConstraint, String, Boolean, ForeignKey, Enum, DateTime, UniqueConstraint, Uuid, func
 from typing import Optional
 
@@ -37,6 +37,7 @@ class Video(Base):
     visibility: Mapped[Visibility] = mapped_column(Enum(Visibility, native_enum=False), nullable=False, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
     
+    user: Mapped[User] = relationship("User")
     
 class VideoStats(Base):
     __tablename__ = "video_stats"

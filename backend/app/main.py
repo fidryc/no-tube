@@ -12,6 +12,8 @@ import taskiq_fastapi
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from app.infrastructure.messages_broker.implementations.rabbitmq.producer import Producer
+from app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,13 +21,20 @@ async def lifespan(app: FastAPI):
         logger.debug("Start app")
         app.state.cache = cache
         
-        if not broker.is_worker_process:
-            logger.debug("Starting broker")
-            await broker.startup()
-        yield
-        if not broker.is_worker_process:
-            logger.debug("Shutting down broker")
-            await broker.shutdown()
+        async with Producer(settings.RABBITMQ_URL) as producer:
+            await producer.init_queue("video_process")
+
+            app.state.producer = producer
+
+            if not broker.is_worker_process:
+                logger.debug("Starting broker")
+                await broker.startup()
+
+            yield
+
+            if not broker.is_worker_process:
+                logger.debug("Shutting down broker")
+                await broker.shutdown()
         logger.debug("Close app")
 
 app = FastAPI(lifespan=lifespan)

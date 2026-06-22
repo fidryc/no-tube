@@ -67,6 +67,18 @@ class VideoResponseSchema(BaseModel):
     created_at: datetime.datetime
     preview_url: Optional[str] = None
     
+class VideoResponseWithUserSchema(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: str
+    user_id: int
+    processing_status: ProcessingStatuses
+    visibility: Visibility
+    created_at: datetime.datetime
+    user: UserResponseSchema
+    preview_url: Optional[str] = None
+    
+    
 class SubscriptionSchema(BaseModel):
     days: int = Field(gt=0)
     price: float = Field(gt=0)

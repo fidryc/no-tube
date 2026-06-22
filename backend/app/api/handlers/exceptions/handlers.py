@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+
 from app.core.logger import logger
 
 from fastapi import Request, status
@@ -33,7 +35,9 @@ VIDEO_SERVICE_STATUS_CODES = {
     VideoErrs.SUBSCRIPTION_ALREADY_EXISTS: 409,
     VideoErrs.SUBSCRIPTION_EXPIRE: 403,
     VideoErrs.CANT_DELETE_LIKE: 422,
-    VideoErrs.LIKE_EXISTS: 422
+    VideoErrs.LIKE_EXISTS: 422,
+    VideoErrs.SUBSCRIPTION_NOT_EXISTS: 403, 
+    VideoErrs.BALANCE_NOT_EXISTS: 403,
 }
 
 PAYMENT_SERVICE_STATUS_CODES = {
@@ -110,4 +114,16 @@ def validation_exc_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         content=content,
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT
+    )
+    
+def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        content={
+            "error": {
+                "code": "HTTP_EXCEPTION",
+                "message": "HTTP_EXCEPTION",
+                "details": exc.detail
+            }
+        },
+        status_code=exc.status_code,
     )

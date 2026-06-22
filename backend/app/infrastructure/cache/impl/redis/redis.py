@@ -13,8 +13,6 @@ class Cache(ICache):
         self._connection = None
         
     async def __aenter__(self):
-        # TODO: Дописать конфиг
-        # TODO: Дописать обработку исключений
         self._connection = redis.Redis(
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
@@ -24,12 +22,13 @@ class Cache(ICache):
             socket_timeout=0.2,
             retry_on_timeout=False,
             health_check_interval=0,
-            
         )
         
         try:
             await self._connection.ping()
         except RedisError as e:
+            print(type(e))
+            print(repr(e))
             raise CacheException("Error connecting to redis") from e
         
         return self

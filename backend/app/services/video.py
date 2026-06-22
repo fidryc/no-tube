@@ -7,14 +7,14 @@ from typing import Literal, Optional
 import uuid
 
 from app.db.models import Payment
-from app.domain.entitites import AuthorSubscriptionEntity, UserEntity, VideoEntity, VideoStatsEntity
+from app.domain.entitites import AuthorSubscriptionEntity, UserEntity, VideoEntity, VideoStatsEntity, VideoWithUserSchema
 from app.domain.enums import PaymentStatuses, ProcessingStatuses, Visibility
 from app.infrastructure.cache.interface import ICache
 from app.repositories.exceptions import BaseRepositoryException
 from app.repositories.filter.enum import Operation
 from app.repositories.filter.filter import And, Filter, Or
 from app.repositories.interfaces.uow import IUOW
-from app.schemas.schemas import VideoResponseSchema, VideoSchema
+from app.schemas.schemas import UserResponseSchema, VideoResponseSchema, VideoResponseWithUserSchema, VideoSchema
 from app.infrastructure.s3.client import S3Client
 from app.utils.s3.url import build_url
 from app.services.exception import BaseServiceException
@@ -25,7 +25,7 @@ from app.core.logger import logger
 
 
 PRIVATE_VIDEO_PROXY_URL = f"{settings.PRIVATE_VIDEO_PROXY_URL}/{settings.PRIVATE_VIDEO_PROXY_ENDPOINT}"
-PUBLIC_VIDEO_BASE_URL = f"{settings.PUBLIC_VIDEO_BASE_URL}/{settings.PUBLIC_VIDEO_PREFIX}"
+PUBLIC_VIDEO_BASE_URL = f"{settings.PUBLIC_VIDEO_BASE_URL}/{settings.PUBLIC_BUCKET}/{settings.PUBLIC_VIDEO_PREFIX}"
 
 class S3Service:
     def __init__(self, S3_client: S3Client):
@@ -43,7 +43,7 @@ class S3Service:
         return modified
     
     async def get_manifest(self, video_id: uuid.UUID) -> str:
-        manifest = await self.S3_client.get_s3_file("no-tube-videos", f"processing/{video_id}/dash.mpd")
+        manifest = await self.S3_client.get_s3_file(settings.PRIVATE_BUCKET, f"processing/{video_id}/dash.mpd")
         return manifest
     
     
@@ -54,6 +54,8 @@ class VideoErrs(BaseServiceErrs):
     SUBSCRIPTION_EXPIRE = "SUBSCRIPTION_EXPIRE"
     CANT_DELETE_LIKE = "CANT_DELETE_LIKE"
     LIKE_EXISTS = "LIKE_EXISTS"
+    SUBSCRIPTION_NOT_EXISTS = "SUBSCRIPTION_NOT_EXISTS"
+    BALANCE_NOT_EXISTS = "BALANCE_NOT_EXISTS"
     
     
 class VideoServiceException(BaseServiceException):
@@ -94,6 +96,9 @@ class VideoService:
         video = await self.uow.video_repo.get_by_id(id=video_id)
         if not video: 
             raise VideoServiceException("Only the creator can receive a manifest.", err=VideoErrs.NOT_FOUND)
+        
+        if video.user_id == user_id:
+            return 
         
         if video.visibility == Visibility.PUBLIC:
             return
@@ -146,6 +151,15 @@ class VideoService:
                 "price": price,
             }
         )
+        
+        balance = await self.uow.balance_repo.get_by_id(user_id, "user_id")
+        if not balance:
+            balance_id = await self.uow.balance_repo.add(
+                {
+                    "user_id": user_id,
+                    "amount": 0,
+                }
+            )
         return sub_id
     
     @video_service_exc_handler("VideoService.subscribe")   
@@ -202,7 +216,7 @@ class VideoService:
         visibility: Optional[list[Visibility] | Visibility] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> list[VideoResponseSchema]:
+    ) -> list[VideoResponseWithUserSchema]:
         filters = []
         if processing_status:
             filters.append(
@@ -227,7 +241,7 @@ class VideoService:
         if created_at:
             filters.append(Filter("created_at", created_at, Operation.GE))
             
-        videos = await self.uow.video_repo.get_by_filters(
+        videos = await self.uow.video_repo.get_by_filters_with_users(
             *filters,
             limit=limit,
             offset=offset,
@@ -239,7 +253,7 @@ class VideoService:
         for video in videos:
             videos_response.append(
                 # You can check the video status, but I'll leave it like this for now.
-                VideoResponseSchema(
+                VideoResponseWithUserSchema(
                     id=video.id,
                     title=video.title,
                     description=video.description,
@@ -247,6 +261,14 @@ class VideoService:
                     processing_status=video.processing_status,
                     visibility=video.visibility,
                     created_at=video.created_at,
+                    user=UserResponseSchema(
+                        id = video.user.id,
+                        username = video.user.username,
+                        email = video.user.email,
+                        created_at = video.user.created_at,
+                        is_confirmed = video.user.is_confirmed,
+                        avatar_url = build_url(video.user.avatar_key) if video.user.avatar_key else None,
+                    ),
                     preview_url=build_url(video.preview_key) if video.preview_key and video.visibility != Visibility.PRIVATE else None,
                 )
             )
@@ -272,6 +294,13 @@ class VideoService:
                 err=VideoErrs.NO_RIGHTS
             )
     
+    @video_service_exc_handler("VideoService.validate_sub")
+    async def validate_sub(self, user_id: int):
+        if not await self.uow.author_subscriptions_repo.get_by_id(user_id, id_title_col="author_id"):
+            raise VideoServiceException("Sub not exists", err = VideoErrs.SUBSCRIPTION_NOT_EXISTS)
+        if not await self.uow.balance_repo.get_by_id(user_id, id_title_col="user_id"):
+            raise VideoServiceException("balance not exists", err=VideoErrs.BALANCE_NOT_EXISTS) 
+        
     @video_service_exc_handler("VideoService.update_video")
     async def update_video(
         self,
@@ -292,6 +321,8 @@ class VideoService:
             values["description"] = description
 
         if visibility is not None:
+            if visibility == Visibility.SUBSCRIPTION:
+                await self.validate_sub(user_id)
             values["visibility"] = visibility
 
         await self.uow.video_repo.update_many(
@@ -310,7 +341,7 @@ class VideoService:
 
         video = await self.get_one(video_id)
         await self.uow.video_repo.delete_by_filters(
-            Filter("id", video_id, Operation.EQ)
+            filters=[Filter("id", video_id, Operation.EQ)]
         )
         
         # delete from s3
@@ -392,6 +423,26 @@ class VideoService:
             },
             id_title_col=["video_id", "user_id"]
         )
+        stat = await self.uow.video_stats_repo.get_by_id(video_id, "video_id")
+        if not stat:
+            await self.uow.video_stats_repo.add(
+                {
+                    "video_id": video_id,
+                    "likes": 1,
+                    "views": 0
+                },
+                "video_id"
+            )
+        else:
+            await self.uow.video_stats_repo.update_many(
+                Filter("video_id", video_id),
+                values={
+                    "video_id": video_id,
+                    "likes": stat.likes + 1,
+                    "views": stat.views
+                },
+                id_title_col="video_id"
+            )
         return ids[0]
     
     @video_service_exc_handler("VideoService.delete_like")
@@ -409,8 +460,20 @@ class VideoService:
             ],
             id_title_col=["video_id", "user_id"],
         )
+        
+        stat = await self.uow.video_stats_repo.get_by_id(video_id, "video_id")
+        await self.uow.video_stats_repo.update_many(
+            Filter("video_id", video_id),
+            values={
+                "video_id": video_id,
+                "likes": stat.likes - 1,
+                "views": stat.views
+            },
+            id_title_col="video_id"
+        )
         if ids:
             return ids[0][0]
+          
     
     @video_service_exc_handler("VideoService.get_sub_id")    
     async def get_sub_id(self, author_id: int) -> Optional[uuid.UUID]:
@@ -435,6 +498,27 @@ class VideoService:
             },
             id_title_col=["video_id", "user_id"],
         )
+        # обновляем статистику 
+        stat = await self.uow.video_stats_repo.get_by_id(video_id, "video_id")
+        if not stat:
+            await self.uow.video_stats_repo.add(
+                {
+                    "video_id": video_id,
+                    "likes": 0,
+                    "views": 1
+                },
+                "video_id"
+            )
+        else:
+            ids = await self.uow.video_stats_repo.update_many(
+                Filter("video_id", video_id),
+                values={
+                    "video_id": video_id,
+                    "likes": stat.likes,
+                    "views": stat.views + 1
+                },
+                id_title_col="video_id"
+            )
         return id
     
     @video_service_exc_handler("VideoService.update_preview")   

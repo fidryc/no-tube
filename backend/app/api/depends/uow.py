@@ -12,9 +12,12 @@ async def get_uow_init() -> AsyncGenerator[UOW, None]:
 
 UOWDepInit = Annotated[UOW, Depends(get_uow_init)]
 
+from typing import AsyncGenerator, Callable
+from fastapi import Depends
+
 def get_uow_init_with_isolation_level(isolation_level: str):
-    @asynccontextmanager
-    async def inner():
+    async def dependency():
         async with UOW(isolation_level) as uow:
             yield uow
-    return inner
+    return dependency
+

@@ -2,6 +2,7 @@
 # Подменяю пока, чтобы не делать для каждой модели еще и схему для апи
 import uuid
 
+from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 import datetime
 import decimal
@@ -20,6 +21,16 @@ class UserEntity:
     is_confirmed: bool
     hashed_password: Optional[str] = None
     avatar_key: Optional[str] = None
+    
+    
+class UserSchema(BaseModel):
+    id: int
+    username: str
+    email: str
+    role: Roles
+    created_at: datetime.datetime
+    is_confirmed: bool
+    avatar_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -33,7 +44,18 @@ class VideoEntity:
     created_at: datetime.datetime
     preview_key: Optional[str] = None
     
-
+class VideoWithUserSchema(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: str
+    user_id: int
+    processing_status: ProcessingStatuses
+    visibility: Visibility
+    created_at: datetime.datetime
+    user: UserSchema
+    preview_key: Optional[str] = None
+    
+    
 @dataclass(frozen=True)
 class VideoStatsEntity:
     video_id: uuid.UUID
@@ -103,8 +125,8 @@ class PaymentEntity:
     author_subscription_id: int
     status: int
     amount: decimal.Decimal
-    provider_payment_id: int
-    created_at: int
+    created_at: datetime.datetime
+    provider_payment_id: Optional[str] = None
     
     
 @dataclass(frozen=True)

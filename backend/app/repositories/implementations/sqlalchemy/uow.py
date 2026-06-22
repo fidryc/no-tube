@@ -44,7 +44,7 @@ class UOW(IUOW):
     async def __aenter__(self) -> Self:
         self.__session = self.session_factory()
         if self._isolation_level:
-            await self.__session.connection().execution_options(
+            (await self.__session.connection()).execution_options(
                 isolation_level=self._isolation_level
             )
             logger.debug(f"UOW change isolation level on {self._isolation_level}")

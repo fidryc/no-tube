@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +16,17 @@ import (
 )
 
 func main() {
+	// Создаю сразу папки чтобы внутри контейнера они тоже были созданы
+	dirs := []string{
+		"./tmp/upload/draft",
+		"./tmp/video-processing",
+	}
+
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			log.Fatal(err)
+		}
+	}
 	config := config.MustLoad()
 	logger := logger.ConfigLogger("DEV")
 	client, err := s3.NewClient(*config, logger)

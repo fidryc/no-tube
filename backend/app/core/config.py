@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
 
-MODE: Literal["DEV", "PROD", "TEST"] = "DEV"
+MODE: Literal["DEV", "PROD", "TEST"] = "PROD"
 
 env_file = {
     "DEV": ".env.dev",
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     @property
     def REDIS_URL(self):
         if not self.__REDIS_URL:
-            self.__REDIS_URL = f"redis://{self.REDIS_USER}:{self.REDIS_PASS}@{self.REDIS_HOST}:{self.REDIS_PORT}"
+            self.__REDIS_URL = f"redis://:{self.REDIS_PASS}@{self.REDIS_HOST}:{self.REDIS_PORT}"
         return self.__REDIS_URL
     
     SMTP_HOST: str

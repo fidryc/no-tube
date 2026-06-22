@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 
 from aiobotocore.session import get_session
 from aiobotocore.client import AioBaseClient
+from aiobotocore.config import AioConfig
 from app.core.config import settings
 
 S3_CONFIG = {
@@ -39,7 +40,6 @@ class S3Client:
                 Key=key,
                 Body=data
             )
-            print(resp)
             
     async def presigned_url_put(self, bucket: str, key: str, expires: int):
         async with self.get_client() as client:
